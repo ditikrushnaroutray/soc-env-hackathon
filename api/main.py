@@ -73,4 +73,5 @@ def grade_session(session_id: str):
     if session_id not in SESSIONS:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"session_id": session_id, "final_score": SESSIONS[session_id]["score"]}
+
     
