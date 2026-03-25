@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
-from models import SOCObservation, SOCAction
+from models import SOCObservation, SOCAction, LogEntry
+from generators import generate_logs
 import uuid
 
 app = FastAPI(title="SOC Incident Response Env")
@@ -23,7 +24,19 @@ def get_tasks():
 @app.post("/reset")
 def reset_environment(task_id: str):
     session_id = str(uuid.uuid4())
-    initial_observation = SOCObservation(current_logs=[], blocked_ips=[], system_status="Normal")
+    
+    # 1. Generate raw dictionary logs from our generator script
+    raw_logs = generate_logs(task_id)
+    
+    # 2. Convert them into strict Pydantic models
+    parsed_logs = [LogEntry(**log) for log in raw_logs]
+    
+    # 3. Build the initial state loaded with the new logs
+    initial_observation = SOCObservation(
+        current_logs=parsed_logs, 
+        blocked_ips=[], 
+        system_status="Under Attack" if task_id != "normal" else "Normal"
+    )
     
     SESSIONS[session_id] = {
         "task_id": task_id,
@@ -41,7 +54,7 @@ def take_action(session_id: str, action: SOCAction):
     session = SESSIONS[session_id]
     session["step_count"] += 1
     
-    # We will build the actual engine logic tomorrow
+    # We will build the actual engine grading logic tomorrow
     return {
         "observation": session["state"].model_dump(),
         "reward": 0.0,
@@ -60,3 +73,4 @@ def grade_session(session_id: str):
     if session_id not in SESSIONS:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"session_id": session_id, "final_score": SESSIONS[session_id]["score"]}
+    
