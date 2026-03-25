@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from models import SOCObservation, SOCAction, LogEntry
 from generators import generate_logs
+from engine import evaluate_action
 import uuid
 
 app = FastAPI(title="SOC Incident Response Env")
@@ -54,12 +55,26 @@ def take_action(session_id: str, action: SOCAction):
     session = SESSIONS[session_id]
     session["step_count"] += 1
     
-    # We will build the actual engine grading logic tomorrow
+    # 1. Ask the engine to grade the action
+    reward, done, msg = evaluate_action(action, session["state"])
+    
+    # 2. Update the total score
+    session["score"] += reward
+    
+    # 3. Apply the state change (If they blocked an IP, add it to the firewall)
+    if action.action_type == "block_ip" and action.target_ip not in session["state"].blocked_ips:
+        session["state"].blocked_ips.append(action.target_ip)
+        
+    # 4. Hard stop at 10 steps so the AI can't loop forever
+    if session["step_count"] >= 10:
+        done = True
+        msg += " | Max steps reached."
+    
     return {
         "observation": session["state"].model_dump(),
-        "reward": 0.0,
-        "done": False,
-        "info": {"steps_taken": session["step_count"]}
+        "reward": reward,
+        "done": done,
+        "info": {"steps_taken": session["step_count"], "message": msg, "current_score": session["score"]}
     }
 
 @app.get("/state")
@@ -73,5 +88,4 @@ def grade_session(session_id: str):
     if session_id not in SESSIONS:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"session_id": session_id, "final_score": SESSIONS[session_id]["score"]}
-
     
