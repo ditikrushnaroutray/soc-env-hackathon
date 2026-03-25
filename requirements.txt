@@ -3,4 +3,6 @@ uvicorn==0.42.0
 pydantic==2.12.5
 requests==2.33.0
 python-dotenv==1.2.2
+openai
+python-dotenv
 
