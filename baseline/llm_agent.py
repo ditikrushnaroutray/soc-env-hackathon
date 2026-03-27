@@ -1,8 +1,8 @@
 """
-llm_agent.py — LLM-Powered SOC Analyst Agent
-==============================================
-Uses a large language model (OpenAI-compatible API) to analyse a SOCObservation
-and decide whether to ``block_ip``, ``escalate``, or ``allow_ip``.
+llm_agent.py — LLM-Powered SOC Analyst Agent (Gemini)
+======================================================
+Uses Google's Gemini model via the official ``google-genai`` SDK to analyse a
+SOCObservation and decide whether to ``block_ip``, ``escalate``, or ``allow_ip``.
 
 Pipeline
 --------
@@ -12,7 +12,7 @@ Pipeline
   build_prompt()          → Formats raw log data into a security-analyst prompt
        │
        ▼
-  query_llm()             → Sends the prompt to the LLM and gets a JSON response
+  query_llm()             → Sends the prompt to Gemini and gets a text response
        │
        ▼
   parse_llm_response()    → Validates + coerces the response into a SOCAction dict
@@ -22,14 +22,13 @@ Pipeline
 
 Usage
 -----
-    python3 llm_agent.py                   # full simulation (all 3 tasks)
-    python3 llm_agent.py --task easy       # single task
-    python3 llm_agent.py --task hard --model gpt-4o
+    python3 llm_agent.py                          # full simulation (all 3 tasks)
+    python3 llm_agent.py --task easy              # single task
+    python3 llm_agent.py --task hard --model gemini-2.5-pro
 
 Environment variables (or edit the CONFIG section below)
 ---------------------------------------------------------
-    OPENAI_API_KEY   → Your OpenAI API key  (placeholder set by default)
-    OPENAI_BASE_URL  → Override to use any OpenAI-compatible endpoint
+    GEMINI_API_KEY   → Your Gemini API key (get one free at https://aistudio.google.com)
 """
 
 import os
@@ -40,6 +39,8 @@ import argparse
 import requests
 from typing import Optional
 from dotenv import load_dotenv
+from google import genai
+from google.genai import types as genai_types
 
 # ─── Load .env if present ──────────────────────────────────────────────────────
 load_dotenv()
@@ -49,14 +50,19 @@ load_dotenv()
 # SOC environment API
 BASE_URL = "http://127.0.0.1:8000"
 
-# OpenAI-compatible LLM settings
-# Replace OPENAI_API_KEY with your real key, or set it in baseline/.env
-LLM_API_KEY  = os.getenv("OPENAI_API_KEY", "sk-placeholder-replace-with-real-key")
-LLM_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-LLM_MODEL    = os.getenv("OPENAI_MODEL",    "gpt-4o-mini")
+# Gemini settings
+# Set GEMINI_API_KEY in your environment or in baseline/.env
+# Get a free key at: https://aistudio.google.com/app/apikey
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "placeholder-replace-with-real-gemini-key")
+LLM_MODEL      = os.getenv("GEMINI_MODEL",   "gemini-2.5-flash")
 
 # How many times to retry if the LLM returns unparseable output
 MAX_PARSE_RETRIES = 2
+
+# ─── Gemini Client (module-level singleton) ────────────────────────────────────
+# The client reads GEMINI_API_KEY from the constructor argument.
+# If the key is the placeholder it will fail only when a call is actually made.
+_gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ─── Prompt Engineering ───────────────────────────────────────────────────────
 
@@ -137,46 +143,37 @@ def build_prompt(observation: dict) -> str:
 
 def query_llm(prompt: str, model: str = LLM_MODEL) -> str:
     """
-    Send the formatted prompt to the LLM via the OpenAI Chat Completions API
-    (or any compatible endpoint).
+    Send the formatted prompt to Gemini via the official ``google-genai`` SDK.
+
+    The system instruction is passed through ``GenerateContentConfig`` so it is
+    handled correctly by the Gemini API (it does not use an OpenAI-style
+    ``system`` role message).
 
     Returns the raw text content of the model's reply.
 
     Raises
     ------
     RuntimeError
-        If the HTTP request fails or the API returns an error response.
+        If the Gemini API call fails for any reason.
     """
-    headers = {
-        "Authorization": f"Bearer {LLM_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": model,
-        "temperature": 0.0,        # deterministic — we want consistent decisions
-        "max_tokens": 256,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user",   "content": prompt},
-        ],
-    }
-
     try:
-        resp = requests.post(
-            f"{LLM_BASE_URL}/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=30,
+        response = _gemini_client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                temperature=0.0,       # deterministic — we want consistent decisions
+                response_mime_type="application/json",
+            ),
         )
-        resp.raise_for_status()
-    except requests.exceptions.ConnectionError as exc:
-        raise RuntimeError(f"LLM endpoint unreachable ({LLM_BASE_URL}): {exc}") from exc
-    except requests.exceptions.HTTPError as exc:
-        body = exc.response.text[:300] if exc.response else ""
-        raise RuntimeError(f"LLM API error {exc.response.status_code}: {body}") from exc
+    except Exception as exc:
+        raise RuntimeError(f"Gemini API call failed: {exc}") from exc
 
-    data = resp.json()
-    return data["choices"][0]["message"]["content"].strip()
+    # response.text is the convenience accessor for the first candidate's text
+    text = response.text
+    if text is None:
+        raise RuntimeError("Gemini returned an empty response (no text candidates).")
+    return text.strip()
 
 
 # ─── Response Parser ──────────────────────────────────────────────────────────
@@ -404,15 +401,15 @@ def run_simulation(model: str = LLM_MODEL) -> None:
     print("═" * 60)
     print(f"  Model  : {model}")
     print(f"  Tasks  : {', '.join(tasks)}")
-    print(f"  API    : {LLM_BASE_URL}")
+    print(f"  SDK    : google-genai (Gemini Developer API)")
 
     # Warn loudly if using the placeholder key
-    if LLM_API_KEY.startswith("sk-placeholder"):
+    if GEMINI_API_KEY.startswith("placeholder"):
         print()
-        print("  ⚠️  WARNING: Placeholder API key detected.")
-        print("     Set OPENAI_API_KEY in your environment or baseline/.env")
-        print("     before running this agent against a live LLM.\n")
-        print("  ℹ️  Continuing — expect LLM call failures without a real key.")
+        print("  ⚠️  WARNING: Placeholder GEMINI_API_KEY detected.")
+        print("     Get a free key at https://aistudio.google.com/app/apikey")
+        print("     then set GEMINI_API_KEY in your environment or baseline/.env\n")
+        print("  ℹ️  Continuing — expect Gemini API failures without a real key.")
 
     for task in tasks:
         result = run_agent(task, model=model)
@@ -461,7 +458,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         default=LLM_MODEL,
-        help=f"OpenAI model to use (default: {LLM_MODEL}).",
+        help=f"Gemini model to use (default: {LLM_MODEL}).",
     )
     args = parser.parse_args()
 
