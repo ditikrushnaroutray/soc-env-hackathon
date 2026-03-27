@@ -15,5 +15,7 @@ COPY baseline/ ./baseline/
 # Expose the port FastAPI runs on
 EXPOSE 8000
 
-# Start the FastAPI engine
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start the FastAPI server.
+# We set the working directory to /app/api so uvicorn can resolve
+# the 'main' module directly (api/ has no __init__.py).
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "api"]

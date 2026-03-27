@@ -1,0 +1,23 @@
+services:
+
+  # ── SOC API Server ────────────────────────────────────────────────────────────
+  soc-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: soc-api
+    ports:
+      - "8000:8000"          # host:container — access via http://localhost:8000
+    environment:
+      # Gemini API key forwarded into the container.
+      # Set it in your shell before running: export GEMINI_API_KEY=your-key
+      # Or create a .env file in this directory with: GEMINI_API_KEY=your-key
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-placeholder-replace-with-real-gemini-key}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
