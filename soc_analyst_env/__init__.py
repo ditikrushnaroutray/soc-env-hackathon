@@ -7,10 +7,10 @@
 """Soc Analyst Env Environment."""
 
 from .client import SocAnalystEnv
-from .models import SocAnalystAction, SocAnalystObservation
+from .models import SOCAction, SOCObservation
 
 __all__ = [
-    "SocAnalystAction",
-    "SocAnalystObservation",
-    "SocAnalystEnv",
+    "SOCAction",
+    "SOCObservation",
+    "SOCAnalystEnv",
 ]

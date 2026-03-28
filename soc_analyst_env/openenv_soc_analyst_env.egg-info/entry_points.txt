@@ -1,0 +1,2 @@
+[console_scripts]
+server = soc_analyst_env.server.app:main

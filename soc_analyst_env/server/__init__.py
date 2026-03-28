@@ -6,6 +6,6 @@
 
 """Soc Analyst Env environment server components."""
 
-from .soc_analyst_env_environment import SocAnalystEnvironment
+from .soc_analyst_env_environment import SOCAnalystEnv
 
-__all__ = ["SocAnalystEnvironment"]
+__all__ = ["SOCAnalystEnv"]
