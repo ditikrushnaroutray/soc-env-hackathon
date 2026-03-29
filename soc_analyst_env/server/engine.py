@@ -7,7 +7,8 @@ def evaluate_action(action: SOCAction, state: SOCObservation) -> tuple[float, bo
     target_logs = [log for log in state.current_logs if log.source_ip == action.target_ip]
     
     if not target_logs:
-        return -0.5, False, "Penalty: AI targeted an IP that isn't even in the current logs."
+        # A poor action yields 0.0 directly, avoiding unbounded cumulative negatives.
+        return 0.0, False, "Penalty: AI targeted an IP that isn't even in the current logs."
 
     # 2. Heuristic: Is the IP actually bad? (Did it throw 401, 403, or 500 errors?)
     is_malicious = any(log.status_code >= 400 for log in target_logs)
@@ -23,20 +24,22 @@ def evaluate_action(action: SOCAction, state: SOCObservation) -> tuple[float, bo
             message = "Success: Blocked a malicious IP."
             done = True # They solved the incident
         else:
-            reward = -1.0
+            reward = 0.0
             message = "Critical Penalty: Blocked a normal user."
+            done = True # End the simulation on critical failure.
             
     elif action.action_type == "allow_ip":
         if is_malicious:
-            reward = -1.0
+            reward = 0.0
             message = "Critical Penalty: Allowed a hacker to continue."
+            done = True # End the simulation on critical failure.
         else:
-            reward = 0.1
+            reward = 1.0 # Awarded for actively allowing normal traffic to pass if that's the only task.
             message = "Correct: Allowed normal traffic."
+            done = True
 
     elif action.action_type == "escalate":
-        reward = -0.1
-        message = "Escalated to human analyst. Slight penalty for not resolving it."
+        reward = 0.5
+        message = "Escalated to human analyst. Partial credit for safe choice."
 
     return reward, done, message
-    
