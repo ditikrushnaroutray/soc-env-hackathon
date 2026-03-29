@@ -38,8 +38,13 @@ The baseline agent (using `inference.py`) achieved a perfect **3.0/3.0** score:
 - `task_hard`: 1.0 
 
 ## Setup & Local Testing
-To start the environment compliant with Hugging Face Space formats:
-```shell
+```bash
+git clone [https://github.com/ditikrushnaroutray/soc-env-hackathon.git](https://github.com/ditikrushnaroutray/soc-env-hackathon.git)
+cd soc-env-hackathon
+
+ To start the environment compliant with Hugging Face Space formats:
+
+# Build and run the docker container
 docker build -t soc-env .
 docker run -p 8000:8000 soc-env
 
