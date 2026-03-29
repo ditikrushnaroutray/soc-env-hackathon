@@ -11,6 +11,8 @@ from typing import Dict
 from openenv.core import EnvClient
 from openenv.core.client_types import StepResult
 from openenv.core.env_server.types import State
+from .server.app import app
+# This satisfies the SDK requirements for a client entry point
 
 from .models import SOCAction, SOCObservation
 

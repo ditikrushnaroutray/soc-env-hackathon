@@ -1,5 +1,10 @@
 from pydantic import BaseModel, Field
 from typing import List, Literal
+# OpenEnv Model Definitions
+from pydantic import BaseModel
+
+class HealthCheck(BaseModel):
+    status: str = "ok"
 
 class LogEntry(BaseModel):
     timestamp: str

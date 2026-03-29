@@ -22,3 +22,17 @@ Thumbs.db
 # Logs
 *.log
 
+# UV and Package Manager stuff
+.uv/
+uv.lock
+.python-version
+
+# Hidden Git/IDE junk
+.git/
+.github/
+
+# Docker build junk
+.dockerignore
+
+
+
