@@ -4,4 +4,3 @@ type: space
 runtime: fastapi
 app: soc_analyst_env.server.app:app
 port: 8000
-

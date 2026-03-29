@@ -1,0 +1,33 @@
+[project]
+name = "soc-analyst-env"
+version = "0.1.0"
+description = "A SOC Analyst RL environment for log analysis"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "requests",
+    "python-dotenv",
+    "openai",
+    "openenv-core",
+]
+
+[project.scripts]
+server = "soc_analyst_env.server.app:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["soc_analyst_env*"]
+
+# 🚨 THE VALIDATOR FIX: This tells the tool where to find the 'server' logic
+[tool.setuptools.package-data]
+"*" = ["**/*.py", "*.yaml"]
+
+[tool.uv]
+package = true

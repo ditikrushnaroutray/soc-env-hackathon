@@ -8,6 +8,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# CRITICAL FIX: The judges' bot looks for this file immediately.
+COPY openenv.yaml .
+
 # Copy all your code into the container
 COPY soc_analyst_env/ ./soc_analyst_env/
 COPY inference.py .

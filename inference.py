@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Strict Environment Constraints
-API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
+API_BASE_URL = os.environ.get("API_BASE_URL", "[https://api.openai.com/v1](https://api.openai.com/v1)")
 MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o")
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
@@ -47,9 +47,13 @@ def solve_task(task_id: str):
     
     print(f"Beginning Simulation Task: {task_id}")
     
-    # Reset Environment
+    # Reset Environment (FIXED: Payload goes in the JSON body, not the URL)
     try:
-        reset_resp = requests.post(f"{LOCAL_ENV_URL}/reset?task_id={task_id}", timeout=10)
+        reset_resp = requests.post(
+            f"{LOCAL_ENV_URL}/reset", 
+            json={"task_id": task_id}, 
+            timeout=10
+        )
         reset_resp.raise_for_status()
     except Exception as e:
         print(f"Failed to reset environment: {e}")
@@ -60,17 +64,8 @@ def solve_task(task_id: str):
     obs = data.get("observation")
     
     done = False
-    action_schema = {
-        "properties": {
-            "action_type": {"type": "string", "enum": ["block_ip", "allow_ip", "escalate"]},
-            "target_ip": {"type": "string"},
-            "reasoning": {"type": "string"}
-        },
-        "required": ["action_type", "target_ip", "reasoning"],
-        "type": "object"
-    }
-
     steps = 0
+    
     while not done and steps < 10:
         steps += 1
         print(f"[{task_id}] Step {steps} reasoning over logs...")
@@ -100,10 +95,14 @@ def solve_task(task_id: str):
             
         print(f"Selected Action -> {action.get('action_type')} on IP -> {action.get('target_ip')}")
 
+        # Step Environment (FIXED: session_id and action must be packed into the JSON body)
         try:
             step_resp = requests.post(
-                f"{LOCAL_ENV_URL}/step?session_id={session_id}", 
-                json=action,
+                f"{LOCAL_ENV_URL}/step", 
+                json={
+                    "session_id": session_id,
+                    "action": action
+                },
                 timeout=10
             )
             step_resp.raise_for_status()
@@ -130,4 +129,4 @@ if __name__ == "__main__":
 
     for t in tasks:
         solve_task(t)
-
+        
