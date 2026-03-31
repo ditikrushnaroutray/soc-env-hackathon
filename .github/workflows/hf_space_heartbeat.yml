@@ -1,0 +1,15 @@
+name: Space Availability Monitor
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch: 
+
+jobs:
+  ping_space:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Heartbeat to Hugging Face
+        run: |
+          curl -LI https://huggingface.co/spaces/ditikrushnaroutray/soc-env-hackathon -A "GitHubAction-Heartbeat"
+          
