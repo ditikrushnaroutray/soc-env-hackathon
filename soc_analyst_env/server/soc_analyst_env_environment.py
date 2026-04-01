@@ -71,3 +71,4 @@ class SOCAnalystEnv(Environment[SOCAction, SOCObservation, State]):
     def state(self) -> State:
         return self._state
         
+        
