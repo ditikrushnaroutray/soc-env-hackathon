@@ -9,4 +9,3 @@
 from .soc_analyst_env_environment import SOCAnalystEnv
 
 __all__ = ["SOCAnalystEnv"]
-
