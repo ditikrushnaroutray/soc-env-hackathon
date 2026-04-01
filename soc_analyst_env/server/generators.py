@@ -53,3 +53,4 @@ def generate_logs(task_id: str, num_logs: int = 15) -> list[dict]:
     random.shuffle(logs)
     return logs
     
+    
