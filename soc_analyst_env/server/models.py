@@ -24,3 +24,4 @@ class SOCAction(BaseModel):
     )
     target_ip: str = Field(description="The IP address to apply the action to.")
     reasoning: str = Field(description="A brief explanation of why this action was taken.")
+    
