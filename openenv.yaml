@@ -2,5 +2,5 @@ spec_version: 1
 name: soc_analyst_env
 type: space
 runtime: fastapi
-app: soc_analyst_env.server.app:app
+app: app:app
 port: 7860
