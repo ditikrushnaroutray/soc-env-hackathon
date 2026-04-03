@@ -16,7 +16,7 @@ COPY soc_analyst_env/ ./soc_analyst_env/
 COPY inference.py .
 
 # Expose the port FastAPI runs on
-EXPOSE 8000
+EXPOSE 7860
 
 # Start the FastAPI server using the OpenEnv packaged app.
-CMD ["uvicorn", "soc_analyst_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "soc_analyst_env.server.app:app", "--host", "0.0.0.0", "--port", "7860"]
