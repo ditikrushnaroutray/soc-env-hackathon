@@ -79,10 +79,11 @@ def get_tasks():
 @app.get("/baseline")
 def run_baseline():
     """
-    Programmatically triggers the inference script.
+    Programmatically triggers the inference script and returns actual scores.
     """
     import subprocess
     import os
+    import re
     
     # Path to inference.py in the root directory
     script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../inference.py"))
@@ -90,20 +91,61 @@ def run_baseline():
     # Fallback if not found locally via relative path
     if not os.path.exists(script_path):
         script_path = "inference.py"
-        
+    
     try:
-        # Trigger the script
-        result = subprocess.run(["python3", script_path], capture_output=True, text=True)
+        # ✅ FIX #2: Actually execute inference.py instead of hardcoding scores
+        result = subprocess.run(
+            ["python3", script_path],
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
         
-        # Return the baseline scores as JSON
+        output = result.stdout + result.stderr
+        
+        # Parse actual scores from the output
+        scores = {
+            "task_easy": 0.0,
+            "task_medium": 0.0,
+            "task_hard": 0.0
+        }
+        
+        # Extract final scores from logs
+        for task_name in ["task_easy", "task_medium", "task_hard"]:
+            # Look for patterns like "task_easy.*score[=:]\s*([0-9.]+)"
+            pattern = rf"{task_name}.*score[=:\s]+([0-9.]+)"
+            match = re.search(pattern, output, re.IGNORECASE)
+            if match:
+                scores[task_name] = float(match.group(1))
+            
+            # Also check for final_score in metadata
+            if scores[task_name] == 0.0:
+                pattern = rf"final[_\s]score[=:\s]+([0-9.]+)"
+                match = re.search(pattern, output, re.IGNORECASE)
+                if match:
+                    scores[task_name] = float(match.group(1))
+        
+        # Clamp all scores to [0.0, 1.0]
+        for task in scores:
+            scores[task] = max(0.0, min(1.0, scores[task]))
+        
+        return scores
+        
+    except subprocess.TimeoutExpired:
         return {
-            "task_easy": 1.0,
-            "task_medium": 1.0,
-            "task_hard": 1.0
+            "error": "Inference timeout (>300s)",
+            "task_easy": 0.0,
+            "task_medium": 0.0,
+            "task_hard": 0.0
         }
     except Exception as e:
-        return {"error": str(e)}
-
+        return {
+            "error": str(e),
+            "task_easy": 0.0,
+            "task_medium": 0.0,
+            "task_hard": 0.0
+        }
+        
 @app.get("/grader")
 def run_grader(session_id: str):
     """
