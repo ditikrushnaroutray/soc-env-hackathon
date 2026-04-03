@@ -36,6 +36,22 @@ app = create_app(
 SESSIONS = {}
 
 # Register custom endpoints AFTER create_app (they override the defaults)
+@app.get("/", include_in_schema=False)
+def root():
+    """Root endpoint to show the API is alive in the browser."""
+    return {
+        "status": "online",
+        "message": "SOC Analyst Environment API is running! 🛡️",
+        "endpoints": [
+            "/tasks",
+            "/health",
+            "/baseline",
+            "/grader",
+            "/step",
+            "/reset"
+        ]
+    }
+
 @app.get("/health", include_in_schema=False)
 def health():
     """Health check endpoint."""
@@ -147,3 +163,4 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
     main(port=args.port)
+    
