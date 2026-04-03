@@ -53,6 +53,20 @@ app = create_app(
 )
 
 
+@app.get("/")
+def root():
+    """Root endpoint for health check and status."""
+    return {
+        "status": "ok",
+        "message": "SOC Analyst Environment API is running",
+        "endpoints": {
+            "tasks": "/tasks",
+            "baseline": "/baseline",
+            "grader": "/grader"
+        }
+    }
+
+
 @app.get("/tasks")
 def get_tasks():
     # Deferred imports to avoid circular logic
