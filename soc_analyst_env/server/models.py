@@ -23,5 +23,9 @@ class SOCAction(BaseModel):
         description="The action to take. 'block_ip' bans the IP. 'allow_ip' marks it safe. 'escalate' flags it for a human."
     )
     target_ip: str = Field(description="The IP address to apply the action to.")
+<<<<<<< HEAD
     reasoning: str = Field(description="A brief explanation of why this action was taken.")
     
+=======
+    reasoning: str = Field(description="A brief explanation of why this action was taken.")
+>>>>>>> df617397fa817e65274169249a501497bca0c76d

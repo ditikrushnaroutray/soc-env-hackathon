@@ -19,4 +19,8 @@ COPY inference.py .
 EXPOSE 8000
 
 # Start the FastAPI server using the OpenEnv packaged app.
+<<<<<<< HEAD
+=======
+ENV ENABLE_WEB_INTERFACE=true
+>>>>>>> df617397fa817e65274169249a501497bca0c76d
 CMD ["uvicorn", "soc_analyst_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]

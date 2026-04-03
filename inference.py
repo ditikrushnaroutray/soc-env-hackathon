@@ -45,7 +45,6 @@ DO NOT OUTPUT ANY SURROUNDING TEXT OR MARKDOWN.
 def solve_task(task_id: str):
     import requests
     
-    print("[START]")
     print(f"[STEP] Beginning Simulation Task: {task_id}")
     
     # Reset Environment (FIXED: Payload goes in the JSON body, not the URL)
@@ -121,8 +120,10 @@ def solve_task(task_id: str):
 if __name__ == "__main__":
     import requests
     time.sleep(1) # Ensure server up
+    
+    print("[START]")
+    
     try:
-        print("[START]")
         print(f"[STEP] Grabbing Tasks configuration via API...")
         r = requests.get(f"{LOCAL_ENV_URL}/tasks", timeout=5)
         tasks = [t["id"] for t in r.json().get("tasks", [])]

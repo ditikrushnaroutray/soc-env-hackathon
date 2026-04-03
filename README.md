@@ -8,6 +8,10 @@ pinned: false
 app_port: 8000
 tags:
 - openenv
+<<<<<<< HEAD
+=======
+base_path: /web
+>>>>>>> df617397fa817e65274169249a501497bca0c76d
 ---
 
 # SOC Analyst RL Environment (OpenEnv) 🛡️
@@ -26,6 +30,7 @@ Security Operations Center (SOC) environments are notoriously noisy with high fa
 - `target_ip`: The specific IP identifier for the action.
 - `reasoning`: A required LLM rationale string explaining the decision-making process.
 
+<<<<<<< HEAD
 ## Reward Signal & Minus Marking
 To prevent "lazy" static grading, this environment shapes behavior using a strict penalty system:
 - **+1.0 Reward:** Correctly blocking a verified attacker.
@@ -33,18 +38,25 @@ To prevent "lazy" static grading, this environment shapes behavior using a stric
 - **-1.0 Penalty:** Allowing a known threat or outputting a malformed schema.
 This ensures the agent optimizes for safety and precision, not just aggressive blocking.
 
+=======
+>>>>>>> df617397fa817e65274169249a501497bca0c76d
 ## Tasks
 * **Easy (`task_easy`)**: Identify a standard brute-force login attack where one IP repeatedly triggers `401 Unauthorized` requests.
 * **Medium (`task_medium`)**: Block a distributed SQL injection by identifying `500` server errors stemming from malicious query patterns.
 * **Hard (`task_hard`)**: Triage a noisy environment containing spoofed decoys, multi-layered brute forcing, and normal application usage.
 
 ## Results
+<<<<<<< HEAD
 The baseline agent (using `inference.py` with OpenEnv strict `[START]`/`[STEP]`/`[END]` logging compliance) achieved a perfect **3.0/3.0** score:
+=======
+The baseline agent (using `inference.py`) achieved a perfect **3.0/3.0** score:
+>>>>>>> df617397fa817e65274169249a501497bca0c76d
 - `task_easy`: 1.0 
 - `task_medium`: 1.0 
 - `task_hard`: 1.0 
 
 ## Setup & Local Testing
+<<<<<<< HEAD
 ```bash
 git clone [https://github.com/ditikrushnaroutray/soc-env-hackathon.git](https://github.com/ditikrushnaroutray/soc-env-hackathon.git)
 cd soc-env-hackathon
@@ -54,3 +66,11 @@ docker build -t soc-env .
 
 # Run the container (Requires HF_TOKEN for baseline evaluation)
 docker run -p 8000:8000 -e HF_TOKEN="your_hf_token_here" soc-env
+=======
+To start the environment compliant with Hugging Face Space formats:
+```shell
+docker build -t soc-env .
+docker run -p 8000:8000 soc-env
+
+```
+>>>>>>> df617397fa817e65274169249a501497bca0c76d
