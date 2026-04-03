@@ -96,30 +96,30 @@ def solve_task(task_id: str):
         print(f"[STEP] Selected Action -> {action.get('action_type')} on IP -> {action.get('target_ip')}")
 
         # Step Environment (FIXED: session_id and action must be packed into the JSON body)
-        try:
-            step_resp = requests.post(
-                f"{LOCAL_ENV_URL}/step", 
-                json={
-                    "session_id": session_id,
-                    "action": action
-                },
-                timeout=10
-            )
-            step_resp.raise_for_status()
-            step_data = step_resp.json()
-            obs = step_data.get("observation")
-            done = step_data.get("done")
-        print(f"Result -> Reward: {step_data.get('metadata', {}).get('current_score') if isinstance(step_data, dict) else None}")
-    step_score = step_data.get("metadata", {}).get("current_score")
-else:
-    step_score = getattr(step_data, "metadata", {}).get("current_score", 0.0)
-            
-        except Exception as e:
-            print(f"[STEP] Step dispatch failed: {e}")
-            break
-            
-    print(f"[STEP] Completed Task: {task_id}")
+       try:
+    step_resp = requests.post(
+        f"{LOCAL_ENV_URL}/step", 
+        json={
+            "session_id": session_id,
+            "action": action
+        },
+        timeout=10
+    )
+    step_resp.raise_for_status()
+    step_data = step_resp.json()
+    obs = step_data.get("observation")
+    done = step_data.get("done")
+    
+    # Get current score from observation.metadata
+    current_score = step_data.get("observation", {}).get("metadata", {}).get("current_score")
+    print(f"[STEP] Result -> Reward: {step_data.get('reward')} | Current Score: {current_score}")
+    
+except Exception as e:
+    print(f"[STEP] Step dispatch failed: {e}")
+    break
 
+print(f"[STEP] Completed Task: {task_id}")
+return step_data.get("observation", {}).get("metadata", {}).get("current_score", 0.0)
 
 if __name__ == "__main__":
     import requests
