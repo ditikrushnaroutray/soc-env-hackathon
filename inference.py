@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Strict Environment Constraints
-API_BASE_URL = os.environ.get("API_BASE_URL", "[https://api.openai.com/v1](https://api.openai.com/v1)")
+API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o")
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
@@ -45,7 +45,8 @@ DO NOT OUTPUT ANY SURROUNDING TEXT OR MARKDOWN.
 def solve_task(task_id: str):
     import requests
     
-    print(f"Beginning Simulation Task: {task_id}")
+    print("[START]")
+    print(f"[STEP] Beginning Simulation Task: {task_id}")
     
     # Reset Environment (FIXED: Payload goes in the JSON body, not the URL)
     try:
@@ -56,7 +57,7 @@ def solve_task(task_id: str):
         )
         reset_resp.raise_for_status()
     except Exception as e:
-        print(f"Failed to reset environment: {e}")
+        print(f"[STEP] Failed to reset environment: {e}")
         return
 
     data = reset_resp.json()
@@ -68,7 +69,7 @@ def solve_task(task_id: str):
     
     while not done and steps < 10:
         steps += 1
-        print(f"[{task_id}] Step {steps} reasoning over logs...")
+        print(f"[STEP] Task {task_id}: Step {steps} reasoning over logs...")
         
         # Format the observation for the LLM
         prompt = f"Current Logs: {json.dumps(obs.get('current_logs', []))}\nSystem Status: {obs.get('system_status')}\nBlocked IPs: {obs.get('blocked_ips')}"
@@ -90,10 +91,10 @@ def solve_task(task_id: str):
             
             action = json.loads(raw_content)
         except Exception as e:
-            print(f"LLM Generation Parse Failure, Escaping: {e}")
+            print(f"[STEP] LLM Generation Parse Failure, Escaping: {e}")
             action = {"action_type": "escalate", "target_ip": "unknown", "reasoning": "Fallback due to parse error."}
             
-        print(f"Selected Action -> {action.get('action_type')} on IP -> {action.get('target_ip')}")
+        print(f"[STEP] Selected Action -> {action.get('action_type')} on IP -> {action.get('target_ip')}")
 
         # Step Environment (FIXED: session_id and action must be packed into the JSON body)
         try:
@@ -109,24 +110,27 @@ def solve_task(task_id: str):
             step_data = step_resp.json()
             obs = step_data.get("observation")
             done = step_data.get("done")
-            print(f"Result -> Reward: {step_data.get('reward')} | Current Score: {step_data.get('info', {}).get('current_score')}")
+            print(f"[STEP] Result -> Reward: {step_data.get('reward')} | Current Score: {step_data.get('info', {}).get('current_score')}")
         except Exception as e:
-            print(f"Step dispatch failed: {e}")
+            print(f"[STEP] Step dispatch failed: {e}")
             break
             
-    print(f"Completed Task: {task_id}")
+    print(f"[STEP] Completed Task: {task_id}")
 
 
 if __name__ == "__main__":
     import requests
     time.sleep(1) # Ensure server up
     try:
-        print("Grabbing Tasks configuration via API...")
+        print("[START]")
+        print(f"[STEP] Grabbing Tasks configuration via API...")
         r = requests.get(f"{LOCAL_ENV_URL}/tasks", timeout=5)
         tasks = [t["id"] for t in r.json().get("tasks", [])]
     except Exception:
+        print(f"[STEP] Using default tasks list")
         tasks = ["task_easy", "task_medium", "task_hard"]
 
     for t in tasks:
         solve_task(t)
-        
+    
+    print("[END]")
