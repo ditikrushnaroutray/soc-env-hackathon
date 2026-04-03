@@ -57,7 +57,7 @@ def solve_task(task_id: str):
         reset_resp.raise_for_status()
     except Exception as e:
         print(f"[STEP] Failed to reset environment: {e}")
-        return
+        return 0.0
 
     data = reset_resp.json()
     session_id = data.get("session_id")
@@ -65,6 +65,7 @@ def solve_task(task_id: str):
     
     done = False
     steps = 0
+    final_score = 0.0
     
     while not done and steps < 10:
         steps += 1
@@ -96,34 +97,36 @@ def solve_task(task_id: str):
         print(f"[STEP] Selected Action -> {action.get('action_type')} on IP -> {action.get('target_ip')}")
 
         # Step Environment (FIXED: session_id and action must be packed into the JSON body)
-       try:
-    step_resp = requests.post(
-        f"{LOCAL_ENV_URL}/step", 
-        json={
-            "session_id": session_id,
-            "action": action
-        },
-        timeout=10
-    )
-    step_resp.raise_for_status()
-    step_data = step_resp.json()
-    obs = step_data.get("observation")
-    done = step_data.get("done")
+        try:
+            step_resp = requests.post(
+                f"{LOCAL_ENV_URL}/step", 
+                json={
+                    "session_id": session_id,
+                    "action": action
+                },
+                timeout=10
+            )
+            step_resp.raise_for_status()
+            step_data = step_resp.json()
+            obs = step_data.get("observation")
+            done = step_data.get("done")
+            
+            # Get current score from observation.metadata
+            current_score = step_data.get("observation", {}).get("metadata", {}).get("current_score", 0.0)
+            final_score = current_score
+            print(f"[STEP] Result -> Reward: {step_data.get('reward')} | Current Score: {current_score}")
+            
+        except Exception as e:
+            print(f"[STEP] Step dispatch failed: {e}")
+            break
     
-    # Get current score from observation.metadata
-    current_score = step_data.get("observation", {}).get("metadata", {}).get("current_score")
-    print(f"[STEP] Result -> Reward: {step_data.get('reward')} | Current Score: {current_score}")
-    
-except Exception as e:
-    print(f"[STEP] Step dispatch failed: {e}")
-    break
+    print(f"[STEP] Completed Task: {task_id}")
+    return final_score
 
-print(f"[STEP] Completed Task: {task_id}")
-return step_data.get("observation", {}).get("metadata", {}).get("current_score", 0.0)
 
 if __name__ == "__main__":
     import requests
-    time.sleep(1) # Ensure server up
+    time.sleep(1)  # Ensure server up
     
     print("[START]")
     
@@ -135,7 +138,13 @@ if __name__ == "__main__":
         print(f"[STEP] Using default tasks list")
         tasks = ["task_easy", "task_medium", "task_hard"]
 
+    # Collect scores for summary
+    scores = {}
     for t in tasks:
-        solve_task(t)
+        score = solve_task(t)
+        scores[t] = score
     
+    # Print summary before [END]
+    print(f"[STEP] Summary scores: {json.dumps(scores)}")
     print("[END]")
+    
