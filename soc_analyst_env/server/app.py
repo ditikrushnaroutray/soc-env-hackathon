@@ -22,6 +22,8 @@ except (ModuleNotFoundError, ImportError):
     from models import SOCAction, SOCObservation
     from server.soc_analyst_env_environment import SOCAnalystEnv
 
+from fastapi import Request
+from fastapi.responses import JSONResponse
 
 # Create the app with web interface and README integration
 app = create_app(
@@ -35,11 +37,13 @@ app = create_app(
 # Global session storage for grading
 SESSIONS = {}
 
-# Register custom endpoints AFTER create_app (they override the defaults)
+# Clear any existing root routes set by OpenEnv to avoid conflicts
+app.router.routes = [route for route in app.router.routes if getattr(route, "path", "") != "/"]
+
 @app.get("/", include_in_schema=False)
-def root():
+async def root(request: Request):
     """Root endpoint to show the API is alive in the browser."""
-    return {
+    return JSONResponse(content={
         "status": "online",
         "message": "SOC Analyst Environment API is running! 🛡️",
         "endpoints": [
@@ -48,9 +52,10 @@ def root():
             "/baseline",
             "/grader",
             "/step",
-            "/reset"
+            "/reset",
+            "/docs"
         ]
-    }
+    })
 
 @app.get("/health", include_in_schema=False)
 def health():
