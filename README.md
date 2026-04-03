@@ -26,11 +26,11 @@ Security Operations Center (SOC) environments are notoriously noisy with high fa
 - `target_ip`: The specific IP identifier for the action.
 - `reasoning`: A required LLM rationale string explaining the decision-making process.
 
-## Reward Signal & Minus Marking
-To prevent "lazy" static grading, this environment shapes behavior using a strict penalty system:
-- **+1.0 Reward:** Correctly blocking a verified attacker.
-- **-0.5 Penalty (False Positive):** Blocking a legitimate user.
-- **-1.0 Penalty:** Allowing a known threat or outputting a malformed schema.
+## Reward Signal
+To prevent "lazy" static grading, this environment shapes behavior using a strict scoring system:
+- **+1.0 Reward:** Correctly blocking a verified attacker or correctly allowing legitimate traffic.
+- **+0.5 Reward (Partial):** Escalating to a human analyst.
+- **0.0 (No Reward):** Incorrect action (e.g., blocking a legitimate user or allowing a known threat).
 This ensures the agent optimizes for safety and precision, not just aggressive blocking.
 
 ## Tasks

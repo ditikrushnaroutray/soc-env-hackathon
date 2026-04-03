@@ -42,9 +42,6 @@ app = create_app(
     max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
 )
 
-# Global session storage for grading
-SESSIONS = {}
-
 @app.get("/", include_in_schema=False)
 def root():
     """Root endpoint for health check and status."""
@@ -79,44 +76,68 @@ def get_tasks():
 @app.get("/baseline")
 def run_baseline():
     """
-    Programmatically triggers the inference script.
+    Runs inference.py and returns the actual baseline scores parsed from its output.
     """
     import subprocess
+    import json
     import os
-    
-    # Path to inference.py in the root directory
+    import re
+
+    # Locate inference.py (root of the project)
     script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../inference.py"))
-    
-    # Fallback if not found locally via relative path
     if not os.path.exists(script_path):
         script_path = "inference.py"
-        
+
     try:
-        # Trigger the script
-        result = subprocess.run(["python3", script_path], capture_output=True, text=True)
-        
-        # Return the baseline scores as JSON
-        return {
-            "task_easy": 1.0,
-            "task_medium": 1.0,
-            "task_hard": 1.0
-        }
+        result = subprocess.run(
+            ["python3", script_path],
+            capture_output=True,
+            text=True,
+            timeout=1200,
+        )
+        output = result.stdout + result.stderr
+
+        # Parse per-task scores from the structured [STEP] summary line
+        # Expected format: [STEP] Summary scores: {"task_easy": 1.0, ...}
+        summary_match = re.search(r"\[STEP\] Summary scores: (\{.*\})", output)
+        if summary_match:
+            scores = json.loads(summary_match.group(1))
+            # Ensure all three tasks are present and values are clamped to [0.0, 1.0]
+            return {
+                task: max(0.0, min(1.0, float(scores.get(task, 0.0))))
+                for task in ("task_easy", "task_medium", "task_hard")
+            }
+
+        # Fallback: parse individual [STEP] Completed Task lines
+        # Format: [STEP] Completed Task: task_easy | final_score: 0.75
+        scores = {}
+        for m in re.finditer(r"\[STEP\] Completed Task: (\S+) \| final_score: ([0-9.]+)", output):
+            task_id, score = m.group(1), float(m.group(2))
+            scores[task_id] = max(0.0, min(1.0, score))
+
+        if scores:
+            return {
+                task: scores.get(task, 0.0)
+                for task in ("task_easy", "task_medium", "task_hard")
+            }
+
+        _MAX_OUTPUT_CHARS = 2000
+        return {"error": "Could not parse scores from inference output", "output": output[-_MAX_OUTPUT_CHARS:]}
+    except subprocess.TimeoutExpired:
+        return {"error": "inference.py timed out (exceeded 1200s limit)"}
     except Exception as e:
         return {"error": str(e)}
 
 @app.get("/grader")
 def run_grader(session_id: str):
     """
-    Returns the score for a session.
+    Returns the score for a session looked up from the environment registry.
     """
     try:
-        if session_id in SESSIONS:
-            env = SESSIONS[session_id]
-            # Safely get the score and normalize between 0.0 and 1.0
-            score = getattr(env, 'total_score', 0.0)
-            score = max(0.0, min(1.0, float(score)))
+        env = SOCAnalystEnv._SESSIONS.get(session_id)
+        if env is not None:
+            score = max(0.0, min(1.0, float(env.total_score)))
             return {"session_id": session_id, "final_score": score}
-        # Return 0.0 on failure to avoid the 'Static Grader' disqualification
         return {"session_id": session_id, "final_score": 0.0, "error": "Session not found"}
     except Exception as e:
         return {"session_id": session_id, "final_score": 0.0, "error": str(e)}

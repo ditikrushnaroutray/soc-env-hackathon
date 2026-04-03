@@ -57,7 +57,7 @@ def solve_task(task_id: str):
         reset_resp.raise_for_status()
     except Exception as e:
         print(f"[STEP] Failed to reset environment: {e}")
-        return
+        return 0.0
 
     data = reset_resp.json()
     session_id = data.get("session_id")
@@ -109,12 +109,27 @@ def solve_task(task_id: str):
             step_data = step_resp.json()
             obs = step_data.get("observation")
             done = step_data.get("done")
-            print(f"[STEP] Result -> Reward: {step_data.get('reward')} | Current Score: {step_data.get('info', {}).get('current_score')}")
+            # Score is in observation.metadata.current_score
+            current_score = step_data.get("observation", {}).get("metadata", {}).get("current_score")
+            print(f"[STEP] Result -> Reward: {step_data.get('reward')} | Current Score: {current_score}")
         except Exception as e:
             print(f"[STEP] Step dispatch failed: {e}")
             break
-            
-    print(f"[STEP] Completed Task: {task_id}")
+
+    # Fetch the final score from the grader endpoint using the session_id
+    final_score = 0.0
+    try:
+        grader_resp = requests.get(
+            f"{LOCAL_ENV_URL}/grader?session_id={session_id}",
+            timeout=5
+        )
+        grader_resp.raise_for_status()
+        final_score = grader_resp.json().get("final_score", 0.0)
+    except Exception as e:
+        print(f"[STEP] Grader lookup failed: {e}")
+
+    print(f"[STEP] Completed Task: {task_id} | final_score: {final_score}")
+    return final_score
 
 
 if __name__ == "__main__":
@@ -131,8 +146,10 @@ if __name__ == "__main__":
         print(f"[STEP] Using default tasks list")
         tasks = ["task_easy", "task_medium", "task_hard"]
 
+    scores = {}
     for t in tasks:
-        solve_task(t)
-    
+        scores[t] = solve_task(t)
+
+    print(f"[STEP] Summary scores: {json.dumps(scores)}")
     print("[END]")
     

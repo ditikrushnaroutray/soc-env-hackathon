@@ -3,10 +3,13 @@ from openenv.core.env_server.types import State
 from ..models import SOCObservation, SOCAction, LogEntry
 from .generators import generate_logs
 from .engine import evaluate_action
+from typing import ClassVar
 import uuid
 
 class SOCAnalystEnv(Environment[SOCAction, SOCObservation, State]):
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
+    # Class-level registry mapping session_id (episode_id) -> env instance for grader lookups
+    _SESSIONS: ClassVar[dict] = {}
 
     def __init__(self):
         super().__init__()
@@ -38,6 +41,9 @@ class SOCAnalystEnv(Environment[SOCAction, SOCObservation, State]):
         # Force a fresh generation of logs for the new task
         self.current_obs = None 
         self._ensure_obs_exists()
+        
+        # Register this instance so the grader endpoint can look it up by session_id
+        SOCAnalystEnv._SESSIONS[self._state.episode_id] = self
         
         return self.current_obs
 

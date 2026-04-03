@@ -3,6 +3,5 @@ uvicorn
 pydantic
 requests
 python-dotenv
-google-genai
 openenv-core
 openai
