@@ -5,6 +5,9 @@ from .generators import generate_logs
 from .engine import evaluate_action
 import uuid
 
+# Global session storage - will be populated when environments are created
+SESSIONS = {}
+
 class SOCAnalystEnv(Environment[SOCAction, SOCObservation, State]):
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
 
@@ -14,6 +17,10 @@ class SOCAnalystEnv(Environment[SOCAction, SOCObservation, State]):
         self.task_id = "normal"
         self.total_score = 0.0
         self.current_obs = None
+        
+        # ✅ FIX #1: Register this environment instance in SESSIONS
+        self.session_id = self._state.episode_id
+        SESSIONS[self.session_id] = self
 
     def _ensure_obs_exists(self):
         """Safeguard against OpenEnv losing objects in background thread pools."""
@@ -34,6 +41,10 @@ class SOCAnalystEnv(Environment[SOCAction, SOCObservation, State]):
         self.task_id = kwargs.get("task_id", self.task_id)
         self._state = State(episode_id=str(uuid.uuid4()), step_count=0)
         self.total_score = 0.0
+        
+        # ✅ FIX #1b: Update session_id and re-register
+        self.session_id = self._state.episode_id
+        SESSIONS[self.session_id] = self
         
         # Force a fresh generation of logs for the new task
         self.current_obs = None 
@@ -70,3 +81,4 @@ class SOCAnalystEnv(Environment[SOCAction, SOCObservation, State]):
     @property
     def state(self) -> State:
         return self._state
+        
