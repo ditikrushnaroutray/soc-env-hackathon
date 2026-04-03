@@ -145,13 +145,16 @@ def run_baseline():
             "task_medium": 0.0,
             "task_hard": 0.0
         }
-        
+
 @app.get("/grader")
 def run_grader(session_id: str):
     """
-    Returns the score for a session.
+    Returns the score for a session from the SESSIONS registry.
     """
     try:
+        # ✅ FIX #1c: Import SESSIONS from the environment module
+        from .soc_analyst_env_environment import SESSIONS
+        
         if session_id in SESSIONS:
             env = SESSIONS[session_id]
             # Safely get the score and normalize between 0.0 and 1.0
@@ -162,7 +165,6 @@ def run_grader(session_id: str):
         return {"session_id": session_id, "final_score": 0.0, "error": "Session not found"}
     except Exception as e:
         return {"session_id": session_id, "final_score": 0.0, "error": str(e)}
-
 
 def main(host: str = "0.0.0.0", port: int = 8000):
     """
