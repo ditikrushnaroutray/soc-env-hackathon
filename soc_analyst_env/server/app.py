@@ -24,6 +24,7 @@ except (ModuleNotFoundError, ImportError):
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Create the app with web interface and README integration
 app = create_app(
@@ -37,25 +38,30 @@ app = create_app(
 # Global session storage for grading
 SESSIONS = {}
 
-# Clear any existing root routes set by OpenEnv to avoid conflicts
-app.router.routes = [route for route in app.router.routes if getattr(route, "path", "") != "/"]
+# ---------------------------------------------------------
+# NUCLEAR OPTION: Middleware to hijack the root endpoint
+# This intercepts the request BEFORE openenv can block it.
+# ---------------------------------------------------------
+class RootInterceptMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path == "/" and request.method == "GET":
+            return JSONResponse(content={
+                "status": "online",
+                "message": "SOC Analyst Environment API is running! 🛡️",
+                "endpoints": [
+                    "/tasks",
+                    "/health",
+                    "/baseline",
+                    "/grader",
+                    "/step",
+                    "/reset",
+                    "/docs"
+                ]
+            })
+        return await call_next(request)
 
-@app.get("/", include_in_schema=False)
-async def root(request: Request):
-    """Root endpoint to show the API is alive in the browser."""
-    return JSONResponse(content={
-        "status": "online",
-        "message": "SOC Analyst Environment API is running! 🛡️",
-        "endpoints": [
-            "/tasks",
-            "/health",
-            "/baseline",
-            "/grader",
-            "/step",
-            "/reset",
-            "/docs"
-        ]
-    })
+app.add_middleware(RootInterceptMiddleware)
+# ---------------------------------------------------------
 
 @app.get("/health", include_in_schema=False)
 def health():
