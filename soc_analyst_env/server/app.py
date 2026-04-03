@@ -53,7 +53,7 @@ app = create_app(
 )
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 def root():
     """Root endpoint for health check and status."""
     return {
