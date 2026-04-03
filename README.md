@@ -26,12 +26,19 @@ Security Operations Center (SOC) environments are notoriously noisy with high fa
 - `target_ip`: The specific IP identifier for the action.
 - `reasoning`: A required LLM rationale string explaining the decision-making process.
 
-## Reward Signal & Minus Marking
-To prevent "lazy" static grading, this environment shapes behavior using a strict penalty system:
-- **+1.0 Reward:** Correctly blocking a verified attacker.
-- **-0.5 Penalty (False Positive):** Blocking a legitimate user.
-- **-1.0 Penalty:** Allowing a known threat or outputting a malformed schema.
-This ensures the agent optimizes for safety and precision, not just aggressive blocking.
+## Reward Signal
+
+The agent earns rewards based on its actions:
+
+- **Correct action on actual attacker IP**: +1.0 per action
+- **Incorrect action (blocked legitimate IP)**: 0.0 (no penalty in current implementation)
+- **Escalation for suspicious activity**: +0.5
+- **Decoy IP blocked**: 0.0 (minor penalty not yet implemented)
+
+**Total Score**: Sum of all per-step rewards, normalized to [0.0, 1.0] range.
+
+*Note: The current `engine.py` returns 0.0 for all non-positive cases. A full penalty system will be implemented in future versions.*
+
 
 ## Tasks
 * **Easy (`task_easy`)**: Identify a standard brute-force login attack where one IP repeatedly triggers `401 Unauthorized` requests.
