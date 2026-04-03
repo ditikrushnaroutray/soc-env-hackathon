@@ -16,16 +16,6 @@ Endpoints:
     - GET /state: Get current environment state
     - GET /schema: Get action/observation schemas
     - WS /ws: WebSocket endpoint for persistent sessions
-
-Usage:
-    # Development (with auto-reload):
-    uvicorn server.app:app --reload --host 0.0.0.0 --port 8000
-
-    # Production:
-    uvicorn server.app:app --host 0.0.0.0 --port 8000 --workers 4
-
-    # Or run directly:
-    python -m server.app
 """
 
 try:
@@ -52,6 +42,8 @@ app = create_app(
     max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
 )
 
+# Global session storage for grading
+SESSIONS = {}
 
 @app.get("/", include_in_schema=False)
 def root():
@@ -115,12 +107,11 @@ def run_baseline():
 @app.get("/grader")
 def run_grader(session_id: str):
     """
-    Accesses the OpenEnv in-memory states to bound the cumulative total for grader.
+    Returns the score for a session.
     """
     try:
-        from openenv.core.env_server.http_server import OPEN_SESSIONS
-        if session_id in OPEN_SESSIONS:
-            env = OPEN_SESSIONS[session_id]
+        if session_id in SESSIONS:
+            env = SESSIONS[session_id]
             # Safely get the score and normalize between 0.0 and 1.0
             score = getattr(env, 'total_score', 0.0)
             score = max(0.0, min(1.0, float(score)))
@@ -159,4 +150,3 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
     main(port=args.port)
-    
