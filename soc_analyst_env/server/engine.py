@@ -42,9 +42,4 @@ def evaluate_action(action: SOCAction, state: SOCObservation) -> tuple[float, bo
         reward = 0.5
         message = "Escalated to human analyst. Partial credit for safe choice."
 
-<<<<<<< HEAD
     return reward, done, message
-    
-=======
-    return reward, done, message
->>>>>>> df617397fa817e65274169249a501497bca0c76d

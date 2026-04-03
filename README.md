@@ -45,7 +45,7 @@ The baseline agent (using `inference.py` with OpenEnv strict `[START]`/`[STEP]`/
 - `task_hard`: 1.0 
 
 ## Setup & Local Testing
-```bash
+\`\`\`bash
 git clone https://github.com/ditikrushnaroutray/soc-env-hackathon.git
 cd soc-env-hackathon
 
@@ -54,3 +54,4 @@ docker build -t soc-env .
 
 # Run the container (Requires HF_TOKEN for baseline evaluation)
 docker run -p 8000:8000 -e HF_TOKEN="your_hf_token_here" soc-env
+\`\`\`
