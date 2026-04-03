@@ -5,7 +5,7 @@ colorFrom: blue
 colorTo: indigo
 sdk: docker
 pinned: false
-app_port: 8000
+app_port: 7860
 tags:
 - openenv
 ---
@@ -56,5 +56,5 @@ cd soc-env-hackathon
 docker build -t soc-env .
 
 # Run the container (Requires HF_TOKEN for baseline evaluation)
-docker run -p 8000:8000 -e HF_TOKEN="your_hf_token_here" soc-env
+docker run -p 7860:7860 -e HF_TOKEN="your_hf_token_here" soc-env
 
