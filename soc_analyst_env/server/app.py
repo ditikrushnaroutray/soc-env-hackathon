@@ -10,12 +10,18 @@ FastAPI application for the Soc Analyst Env Environment.
 This module creates an HTTP server that exposes the SocAnalystEnvironment
 over HTTP and WebSocket endpoints, compatible with EnvClient.
 
-Endpoints:
-    - POST /reset: Reset the environment
-    - POST /step: Execute an action
+Endpoints provided by OpenEnv's create_app():
+    - POST /reset: Reset the environment and return a new session_id
+    - POST /step: Execute an action within a session
     - GET /state: Get current environment state
     - GET /schema: Get action/observation schemas
     - WS /ws: WebSocket endpoint for persistent sessions
+
+Additional endpoints defined in this module:
+    - GET /: Health check and status
+    - GET /tasks: List available hackathon tasks
+    - GET /baseline: Run inference.py and return scores
+    - GET /grader: Return the final score for a given session_id
 """
 
 try:
@@ -41,9 +47,6 @@ app = create_app(
     env_name="soc_analyst_env",
     max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
 )
-
-# Global session storage for grading
-SESSIONS = {}
 
 @app.get("/", include_in_schema=False)
 def root():

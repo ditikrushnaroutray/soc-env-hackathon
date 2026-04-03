@@ -109,7 +109,7 @@ def solve_task(task_id: str):
             step_data = step_resp.json()
             obs = step_data.get("observation")
             done = step_data.get("done")
-            print(f"[STEP] Result -> Reward: {step_data.get('reward')} | Current Score: {step_data.get('info', {}).get('current_score')}")
+            print(f"[STEP] Result -> Reward: {step_data.get('reward')} | Current Score: {step_data.get('metadata', {}).get('current_score')}")
         except Exception as e:
             print(f"[STEP] Step dispatch failed: {e}")
             break
