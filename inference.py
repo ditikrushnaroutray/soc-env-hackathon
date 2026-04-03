@@ -42,12 +42,28 @@ JSON SCHEMA TO EXACTLY MATCH:
 DO NOT OUTPUT ANY SURROUNDING TEXT OR MARKDOWN.
 """
 
+def log_start(task: str, env: str, model: str) -> None:
+    print(f"[START] task={task} env={env} model={model}", flush=True)
+
+def log_step(step: int, action: str, reward: float, done: bool, error: str) -> None:
+    error_val = error if error else "null"
+    done_val = str(done).lower()
+    print(
+        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
+        flush=True,
+    )
+
+def log_end(success: bool, steps: int, rewards: list[float]) -> None:
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
+
+
 def solve_task(task_id: str):
     import requests
     
-    print(f"[STEP] Beginning Simulation Task: {task_id}")
+    log_start(task=task_id, env="soc-env-hackathon", model=MODEL_NAME)
     
-    # Reset Environment (FIXED: Payload goes in the JSON body, not the URL)
+    # Reset Environment
     try:
         reset_resp = requests.post(
             f"{LOCAL_ENV_URL}/reset", 
@@ -56,7 +72,8 @@ def solve_task(task_id: str):
         )
         reset_resp.raise_for_status()
     except Exception as e:
-        print(f"[STEP] Failed to reset environment: {e}")
+        log_step(step=0, action="reset", reward=0.0, done=True, error=str(e).replace('\n', ' '))
+        log_end(success=False, steps=0, rewards=[])
         return 0.0
 
     data = reset_resp.json()
@@ -66,10 +83,11 @@ def solve_task(task_id: str):
     done = False
     steps = 0
     final_score = 0.0
+    rewards = []
+    error = None
     
     while not done and steps < 10:
         steps += 1
-        print(f"[STEP] Task {task_id}: Step {steps} reasoning over logs...")
         
         # Format the observation for the LLM
         prompt = f"Current Logs: {json.dumps(obs.get('current_logs', []))}\nSystem Status: {obs.get('system_status')}\nBlocked IPs: {obs.get('blocked_ips')}"
@@ -85,18 +103,18 @@ def solve_task(task_id: str):
             )
             
             raw_content = response.choices[0].message.content.strip()
-            # Clean up markdown if model hallucinates it despite strict prompts
             if raw_content.startswith("```json"):
                 raw_content = raw_content.replace("```json\n", "").replace("\n```", "")
             
             action = json.loads(raw_content)
         except Exception as e:
-            print(f"[STEP] LLM Generation Parse Failure, Escaping: {e}")
+            error = f"LLM Generation Parse Failure: {e}"
             action = {"action_type": "escalate", "target_ip": "unknown", "reasoning": "Fallback due to parse error."}
             
-        print(f"[STEP] Selected Action -> {action.get('action_type')} on IP -> {action.get('target_ip')}")
+        # action string must not contain newlines per rules
+        action_str = json.dumps(action).replace('\n', ' ')
 
-        # Step Environment (FIXED: session_id and action must be packed into the JSON body)
+        # Step Environment
         try:
             step_resp = requests.post(
                 f"{LOCAL_ENV_URL}/step", 
@@ -108,19 +126,26 @@ def solve_task(task_id: str):
             )
             step_resp.raise_for_status()
             step_data = step_resp.json()
-            obs = step_data.get("observation")
-            done = step_data.get("done")
+            obs = step_data.get("observation", {})
+            done = step_data.get("done", True)
+            reward = float(step_data.get("reward", 0.0))
             
-            # Get current score from observation.metadata
-            current_score = step_data.get("observation", {}).get("metadata", {}).get("current_score", 0.0)
+            current_score = obs.get("metadata", {}).get("current_score", 0.0)
             final_score = current_score
-            print(f"[STEP] Result -> Reward: {step_data.get('reward')} | Current Score: {current_score}")
             
         except Exception as e:
-            print(f"[STEP] Step dispatch failed: {e}")
-            break
+            error = f"Step dispatch failed: {e}"
+            reward = 0.0
+            done = True
+
+        rewards.append(reward)
+        log_step(step=steps, action=action_str, reward=reward, done=done, error=error)
+        
+        error = None
     
-    print(f"[STEP] Completed Task: {task_id}")
+    # define success as having a positive score at the end of the episode
+    success = final_score > 0.0
+    log_end(success=success, steps=steps, rewards=rewards)
     return final_score
 
 
@@ -128,23 +153,12 @@ if __name__ == "__main__":
     import requests
     time.sleep(1)  # Ensure server up
     
-    print("[START]")
-    
     try:
-        print(f"[STEP] Grabbing Tasks configuration via API...")
         r = requests.get(f"{LOCAL_ENV_URL}/tasks", timeout=5)
         tasks = [t["id"] for t in r.json().get("tasks", [])]
     except Exception:
-        print(f"[STEP] Using default tasks list")
         tasks = ["task_easy", "task_medium", "task_hard"]
 
-    # Collect scores for summary
-    scores = {}
     for t in tasks:
-        score = solve_task(t)
-        scores[t] = score
-    
-    # Print summary before [END]
-    print(f"[STEP] Summary scores: {json.dumps(scores)}")
-    print("[END]")
-    
+        solve_task(t)
+        
