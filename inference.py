@@ -83,7 +83,7 @@ def solve_task(task_id: str):
         reset_resp.raise_for_status()
     except Exception as e:
         log_step(step=0, action="reset", reward=0.0, done=True, error=str(e).replace('\n', ' '))
-        log_end(success=False, steps=0, score=0.0, rewards=[])
+        log_end(success=False, steps=0, score=0.01, rewards=[])
         return 0.0
 
     data = reset_resp.json()
@@ -155,7 +155,7 @@ def solve_task(task_id: str):
     
     # define success as having a positive score at the end of the episode
     # clamp score to 0.0 - 1.0 for the log output
-    final_score = max(0.0, min(1.0, float(final_score)))
+    final_score = max(0.01, min(0.99, float(final_score)))
     success = final_score > 0.0
     log_end(success=success, steps=steps, score=final_score, rewards=rewards)
     return final_score

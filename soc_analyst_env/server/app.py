@@ -127,7 +127,7 @@ def run_baseline():
                     scores[task_name] = float(match.group(1))
         
         for task in scores:
-            scores[task] = max(0.0, min(1.0, scores[task]))
+            scores[task] = max(0.01, min(0.99, scores[task]))
         
         return scores
         
@@ -157,7 +157,7 @@ def run_grader(session_id: str):
         if session_id in SESSIONS:
             env = SESSIONS[session_id]
             score = getattr(env, 'total_score', 0.0)
-            score = max(0.0, min(1.0, float(score)))
+            score = max(0.01, min(0.99, float(score)))
             return {"session_id": session_id, "final_score": score}
         return {"session_id": session_id, "final_score": 0.0, "error": "Session not found"}
     except Exception as e:
