@@ -15,22 +15,19 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 # =========================================================
 
 # =========================================================
-# PHASE 2 LLM PROXY FIX
-# The automated grader injects 'API_KEY' instead of 'HF_TOKEN'.
-# It explicitly requires us to initialize OpenAI using os.environ[]
-if "API_KEY" in os.environ and "API_BASE_URL" in os.environ:
-    client = OpenAI(
-        base_url=os.environ["API_BASE_URL"],
-        api_key=os.environ["API_KEY"]
-    )
-else:
-    # Local testing fallback
-    if not HF_TOKEN:
-        raise ValueError("Missing API credentials. Please set API_KEY or HF_TOKEN.")
-    client = OpenAI(
-        base_url=API_BASE_URL,
-        api_key=HF_TOKEN
-    )
+# PHASE 2 LLM PROXY FIX (FOOLPROOF VERSION)
+# We aggressively hunt for the key using 'or' instead of strict 'if' conditions.
+# If they inject API_KEY, we use it. If OPENAI_API_KEY, we use it. Else HF_TOKEN.
+_api_key = os.getenv("API_KEY") or os.getenv("OPENAI_API_KEY") or HF_TOKEN
+_base_url = os.getenv("API_BASE_URL") or API_BASE_URL
+
+if not _api_key:
+    raise ValueError("Missing API credentials. Please set API_KEY or HF_TOKEN.")
+
+client = OpenAI(
+    base_url=_base_url,
+    api_key=_api_key
+)
 # =========================================================
 
 LOCAL_ENV_URL = "http://localhost:8000"
