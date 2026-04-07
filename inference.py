@@ -6,19 +6,32 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Use the hackathon-provided credentials
-API_BASE_URL = os.environ.get("API_BASE_URL")
-API_KEY = os.environ.get("API_KEY")
-MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o")
+# =========================================================
+# PHASE 1 STATIC CHECKER REQUIREMENTS
+# Do not change or remove these exact variable declarations!
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
+HF_TOKEN = os.getenv("HF_TOKEN")
+# =========================================================
 
-if not API_BASE_URL or not API_KEY:
-    raise ValueError("Missing API_BASE_URL or API_KEY environment variables from hackathon proxy.")
-
-# Connect using the hackathon's LiteLLM proxy
-client = OpenAI(
-    base_url=API_BASE_URL,
-    api_key=API_KEY
-)
+# =========================================================
+# PHASE 2 LLM PROXY FIX
+# The automated grader injects 'API_KEY' instead of 'HF_TOKEN'.
+# It explicitly requires us to initialize OpenAI using os.environ[]
+if "API_KEY" in os.environ and "API_BASE_URL" in os.environ:
+    client = OpenAI(
+        base_url=os.environ["API_BASE_URL"],
+        api_key=os.environ["API_KEY"]
+    )
+else:
+    # Local testing fallback
+    if not HF_TOKEN:
+        raise ValueError("Missing API credentials. Please set API_KEY or HF_TOKEN.")
+    client = OpenAI(
+        base_url=API_BASE_URL,
+        api_key=HF_TOKEN
+    )
+# =========================================================
 
 LOCAL_ENV_URL = "http://localhost:8000"
 
