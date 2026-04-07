@@ -6,18 +6,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Strict Environment Constraints
-API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
+# Use the hackathon-provided credentials
+API_BASE_URL = os.environ.get("API_BASE_URL")
+API_KEY = os.environ.get("API_KEY")
 MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o")
-HF_TOKEN = os.environ.get("HF_TOKEN")
 
-if not HF_TOKEN:
-    raise ValueError("Missing HF_TOKEN environment variable required by automated judging.")
+if not API_BASE_URL or not API_KEY:
+    raise ValueError("Missing API_BASE_URL or API_KEY environment variables from hackathon proxy.")
 
-# Connect using exact OpenAI standard client requirement
+# Connect using the hackathon's LiteLLM proxy
 client = OpenAI(
     base_url=API_BASE_URL,
-    api_key=HF_TOKEN
+    api_key=API_KEY
 )
 
 LOCAL_ENV_URL = "http://localhost:8000"
@@ -161,4 +161,3 @@ if __name__ == "__main__":
 
     for t in tasks:
         solve_task(t)
-        
