@@ -66,9 +66,9 @@ def log_step(step: int, action: str, reward: float, done: bool, error: str) -> N
         flush=True,
     )
 
-def log_end(success: bool, steps: int, rewards: list[float]) -> None:
+def log_end(success: bool, steps: int, score: float, rewards: list[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
+    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
 
 def solve_task(task_id: str):
@@ -86,7 +86,7 @@ def solve_task(task_id: str):
         reset_resp.raise_for_status()
     except Exception as e:
         log_step(step=0, action="reset", reward=0.0, done=True, error=str(e).replace('\n', ' '))
-        log_end(success=False, steps=0, rewards=[])
+        log_end(success=False, steps=0, score=0.0, rewards=[])
         return 0.0
 
     data = reset_resp.json()
@@ -157,8 +157,10 @@ def solve_task(task_id: str):
         error = None
     
     # define success as having a positive score at the end of the episode
+    # clamp score to 0.0 - 1.0 for the log output
+    final_score = max(0.0, min(1.0, float(final_score)))
     success = final_score > 0.0
-    log_end(success=success, steps=steps, rewards=rewards)
+    log_end(success=success, steps=steps, score=final_score, rewards=rewards)
     return final_score
 
 
