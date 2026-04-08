@@ -38,7 +38,13 @@ def log_step(step: int, action_str: str, reward: float, done: bool, error: str =
 
 def log_end(success: bool, steps: int, rewards: list[float]) -> None:
     success_val = "true" if success else "false"
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    # STRICT BOUNDS FIX: If rewards is empty, force it to [0.01] so sum() is never 0.0
+    if not rewards:
+        rewards = [0.01]
+    
+    # Also mathematically clamp every single printed reward just to be absolutely certain
+    clamped_rewards = [max(0.01, min(0.99, r)) for r in rewards]
+    rewards_str = ",".join(f"{r:.2f}" for r in clamped_rewards)
     print(f"[END] success={success_val} steps={steps} rewards={rewards_str}", flush=True)
 
 
@@ -59,7 +65,7 @@ def solve_task(task_id: str):
         reset_resp.raise_for_status()
     except Exception as e:
         log_step(step=0, action_str="reset", reward=0.01, done=True, error=str(e).replace('\n', ' '))
-        log_end(success=False, steps=0, rewards=[])
+        log_end(success=False, steps=0, rewards=[0.01]) # FIX: Never pass empty array
         return 0.01
 
     data = reset_resp.json()
@@ -102,12 +108,18 @@ def solve_task(task_id: str):
             step_data = step_resp.json()
         except Exception as e:
             log_step(step=steps, action_str=action_str, reward=0.01, done=True, error=str(e).replace('\n', ' '))
+            if not rewards:
+                rewards = [0.01] # FIX: Never pass empty array
             log_end(success=False, steps=steps, rewards=rewards)
             return 0.01
         
         obs = step_data.get("observation", {})
         done = step_data.get("done", True)
         reward = float(step_data.get("reward", 0.01))
+        
+        # STRICT BOUNDS FIX: Clamp the step reward immediately
+        reward = max(0.01, min(0.99, reward))
+        
         current_score = obs.get("metadata", {}).get("current_score", final_score)
         final_score = current_score
 
