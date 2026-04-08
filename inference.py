@@ -10,10 +10,16 @@ from openai import OpenAI
 # =========================================================
 # 1. ENVIRONMENT & API (Strictly OS Driven, NO Defaults)
 # =========================================================
-API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN")
-API_BASE_URL = os.getenv("API_BASE_URL")
-MODEL_NAME = os.getenv("MODEL_NAME")
-LOCAL_ENV_URL = os.getenv("LOCAL_ENV_URL", "http://localhost:7860")
+def get_env_var(keys, default_val=None):
+    for k in keys:
+        if k in os.environ and os.environ[k].strip():
+            return os.environ[k]
+    return default_val
+
+API_KEY = get_env_var(["API_KEY", "OPENAI_API_KEY", "HF_TOKEN"])
+API_BASE_URL = get_env_var(["API_BASE_URL", "OPENAI_BASE_URL", "PROXY_URL"])
+MODEL_NAME = get_env_var(["MODEL_NAME", "LLM_MODEL"])
+LOCAL_ENV_URL = os.environ.get("LOCAL_ENV_URL", "http://localhost:7860")
 
 # If the grader doesn't inject the required variables, exit 0 cleanly.
 if not all([API_KEY, API_BASE_URL, MODEL_NAME]):
@@ -47,13 +53,11 @@ def log_start(task_id: str, env: str, model: str) -> None:
 
 def log_step(step: int, action_str: str, reward: float, done: bool, error: str = None) -> None:
     error_val = error if error else "null"
-    # Lowercase Booleans
     done_val = str(done).lower()
     # Format reward to exactly 2 decimal places
     print(f"[STEP] step={step} action={action_str} reward={reward:.2f} done={done_val} error={error_val}", flush=True)
 
-def log_end(success: bool, steps: int, rewards: list[float]) -> None:
-    # Lowercase Booleans
+def log_end(success: bool, steps: int, score: float, rewards: list[float]) -> None:
     success_val = str(success).lower()
     
     if not rewards:
@@ -63,7 +67,8 @@ def log_end(success: bool, steps: int, rewards: list[float]) -> None:
     clamped_rewards = [max(MIN_SCORE, min(MAX_SCORE, float(r))) for r in rewards]
     rewards_str = ",".join(f"{r:.2f}" for r in clamped_rewards)
     
-    print(f"[END] success={success_val} steps={steps} rewards={rewards_str}", flush=True)
+    # Injected score={score:.3f} exactly as requested by Gemini
+    print(f"[END] success={success_val} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
 
 def solve_task(task_id: str):
@@ -157,9 +162,11 @@ def solve_task(task_id: str):
         # ALWAYS RUNS to emit [END] even on crash
         final_score = max(MIN_SCORE, min(MAX_SCORE, float(final_score)))
         success = final_score > 0.1
-        log_end(success=success, steps=steps, rewards=rewards)
         
-        # 3. Format score to exactly 3 decimal places
+        # Updated log_end call with the score parameter!
+        log_end(success=success, steps=steps, score=final_score, rewards=rewards)
+        
+        # Backup print for safety
         print(f"Task {task_id} final_score: {final_score:.3f}", flush=True)
         return final_score
 
