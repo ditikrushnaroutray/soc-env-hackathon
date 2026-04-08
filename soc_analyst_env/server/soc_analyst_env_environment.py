@@ -15,15 +15,13 @@ class SOCAnalystEnv(Environment[SOCAction, SOCObservation, State]):
         super().__init__()
         self._state = State(episode_id=str(uuid.uuid4()), step_count=0)
         self.task_id = "normal"
-        self.total_score = 0.0
+        self.total_score = 0.01  # STRICT BOUNDS FIX: Start at 0.01, not 0.0
         self.current_obs = None
         
-        # ✅ FIX #1: Register this environment instance in SESSIONS
         self.session_id = self._state.episode_id
         SESSIONS[self.session_id] = self
 
     def _ensure_obs_exists(self):
-        """Safeguard against OpenEnv losing objects in background thread pools."""
         if self.current_obs is None:
             raw_logs = generate_logs(self.task_id)
             parsed_logs = [LogEntry(**log) for log in raw_logs]
@@ -31,35 +29,34 @@ class SOCAnalystEnv(Environment[SOCAction, SOCObservation, State]):
                 current_logs=parsed_logs, 
                 blocked_ips=[], 
                 system_status="Under Attack" if self.task_id != "normal" else "Normal",
-                reward=0.0,
+                reward=0.01,
                 done=False,
                 metadata={"message": "State recovered by safeguard"}
             )
 
     def reset(self, seed=None, episode_id=None, **kwargs) -> SOCObservation:
-        # Capture the specific hackathon task requested by the AI
         self.task_id = kwargs.get("task_id", self.task_id)
         self._state = State(episode_id=str(uuid.uuid4()), step_count=0)
-        self.total_score = 0.0
+        self.total_score = 0.01  # STRICT BOUNDS FIX: Reset to 0.01
         
-        # ✅ FIX #1b: Update session_id and re-register
         self.session_id = self._state.episode_id
         SESSIONS[self.session_id] = self
         
-        # Force a fresh generation of logs for the new task
         self.current_obs = None 
         self._ensure_obs_exists()
         
         return self.current_obs
 
     def step(self, action: SOCAction, timeout_s=None, **kwargs) -> SOCObservation:
-        # 🚨 THE FIX: Guarantee the logs exist before evaluating the action
         self._ensure_obs_exists()
         
         self._state.step_count += 1
         
         reward, done, msg = evaluate_action(action, self.current_obs)
         self.total_score += reward
+        
+        # STRICT BOUNDS FIX: Absolute mathematical clamp on the environment's state
+        self.total_score = max(0.01, min(0.99, float(self.total_score)))
         
         if action.action_type == "block_ip" and action.target_ip not in self.current_obs.blocked_ips:
             self.current_obs.blocked_ips.append(action.target_ip)
@@ -81,4 +78,3 @@ class SOCAnalystEnv(Environment[SOCAction, SOCObservation, State]):
     @property
     def state(self) -> State:
         return self._state
-        
