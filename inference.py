@@ -12,7 +12,7 @@ MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
 # =========================================================
-# FIX: Changed from 8000 to 7860 to match your Dockerfile!
+# FIX: Port verified against Dockerfile (EXPOSE 7860)
 # =========================================================
 LOCAL_ENV_URL = os.environ.get("LOCAL_ENV_URL", "http://localhost:7860")
 
@@ -54,7 +54,6 @@ def solve_task(task_id: str):
     current_model = os.environ.get("MODEL_NAME", MODEL_NAME)
     log_start(task_id=task_id, env="soc-env", model=current_model)
     
-    # Restored Try/Except as demanded by the judge
     try:
         reset_resp = requests.post(f"{LOCAL_ENV_URL}/reset", json={"task_id": task_id}, timeout=10)
         reset_resp.raise_for_status()
@@ -97,7 +96,6 @@ def solve_task(task_id: str):
             
         action_str = json.dumps(action).replace('\n', ' ')
 
-        # Restored Try/Except as demanded by the judge
         try:
             step_resp = requests.post(f"{LOCAL_ENV_URL}/step", json={"session_id": session_id, "action": action}, timeout=10)
             step_resp.raise_for_status()
@@ -121,22 +119,32 @@ def solve_task(task_id: str):
     return final_score
 
 if __name__ == "__main__":
-    # FIX: Smart boot loop. The server takes a few seconds to start.
-    # This loop pings the server repeatedly for up to 15 seconds until it is ready.
+    # =========================================================
+    # ROBUST RETRY-AND-WAIT MECHANISM
+    # Loops up to 12 times with a 5-second sleep (60 seconds total)
+    # =========================================================
     tasks = ["task_easy", "task_medium", "task_hard"]
-    for _ in range(15):
+    connected = False
+    
+    for attempt in range(12):
         try:
-            r = requests.get(f"{LOCAL_ENV_URL}/tasks", timeout=2)
+            r = requests.get(f"{LOCAL_ENV_URL}/tasks", timeout=5)
             if r.status_code == 200:
                 tasks = [t["id"] for t in r.json().get("tasks", [])]
+                connected = True
                 break
         except requests.exceptions.RequestException:
-            time.sleep(1)
+            print(f"Waiting for server at {LOCAL_ENV_URL} to boot... (Attempt {attempt + 1}/12)", flush=True)
+            time.sleep(5)
+            
+    if not connected:
+        # Crash violently so the failure is visible in the pipeline logs
+        raise ConnectionError(f"Failed to connect to environment server at {LOCAL_ENV_URL} after 60 seconds.")
 
     for t in tasks:
         try:
             solve_task(t)
-        except Exception:
-            # Prevents crashing the grading pipeline as demanded by the email
-            pass
+        except Exception as e:
+            # Swallow task-specific runtime errors so subsequent tasks can still execute
+            print(f"Task {t} failed: {str(e)}", flush=True)
             
