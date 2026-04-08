@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import time
 import requests
@@ -6,11 +7,15 @@ import re
 from openai import OpenAI
 
 # =========================================================
-# LAYER 1: STATIC CHECKER DECOYS & CONFIG
+# CONSTRAINT 6: STRICT ENVIRONMENT VARIABLES
 # =========================================================
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
-HF_TOKEN = os.getenv("HF_TOKEN")
+if "API_KEY" not in os.environ or "MODEL_NAME" not in os.environ or "API_BASE_URL" not in os.environ:
+    print("[ERROR] Missing environment configuration", flush=True)
+    sys.exit(1)
+
+API_BASE_URL = os.environ["API_BASE_URL"]
+MODEL_NAME = os.environ["MODEL_NAME"]
+API_KEY = os.environ["API_KEY"]
 LOCAL_ENV_URL = os.environ.get("LOCAL_ENV_URL", "http://localhost:7860")
 
 # =========================================================
@@ -70,11 +75,11 @@ def solve_task(task_id: str):
     print(f"[INFO] Starting Stage: {level_name}", flush=True)
 
     client = OpenAI(
-        base_url=os.environ["API_BASE_URL"],
-        api_key=os.environ["API_KEY"]
+        base_url=API_BASE_URL,
+        api_key=API_KEY
     )
     
-    current_model = os.environ.get("MODEL_NAME", MODEL_NAME)
+    current_model = MODEL_NAME
     log_start(task_id=task_id, env="soc-env", model=current_model)
     
     try:
