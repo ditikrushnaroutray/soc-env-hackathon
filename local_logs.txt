@@ -1,0 +1,39 @@
+[INFO] Starting Stage: Level 1: Easy
+[START] task=task_easy env=soc-env model=gpt-4o
+[STEP] step=1 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=2 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=3 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=4 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=5 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=6 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=7 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=8 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=9 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=10 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[END] success=false steps=10 rewards=0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010
+[INFO] Starting Stage: Level 2: Medium
+[START] task=task_medium env=soc-env model=gpt-4o
+[STEP] step=1 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=2 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=3 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=4 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=5 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=6 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=7 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=8 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=9 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=10 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[END] success=false steps=10 rewards=0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010
+[INFO] Starting Stage: Level 3: Hard
+[START] task=task_hard env=soc-env model=gpt-4o
+[STEP] step=1 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=2 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=3 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=4 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=5 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=6 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=7 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=8 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=9 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[STEP] step=10 action={"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"} reward=0.0010 done=false error=null
+[END] success=false steps=10 rewards=0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010,0.0010
