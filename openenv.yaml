@@ -4,3 +4,21 @@ type: space
 runtime: fastapi
 app: app:app
 port: 7860
+
+tasks:
+  - id: task_easy
+    description: Block the single IP attempting a brute force login.
+    grader:
+      type: deterministic
+      endpoint: /grader
+  - id: task_medium
+    description: Identify and block a distributed SQL injection attack.
+    grader:
+      type: deterministic
+      endpoint: /grader
+  - id: task_hard
+    description: Triage a mixed-traffic environment with decoy attacks and false positives.
+    grader:
+      type: deterministic
+      endpoint: /grader
+      
