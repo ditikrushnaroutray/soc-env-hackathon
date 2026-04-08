@@ -3,16 +3,16 @@ import time
 import json
 from openai import OpenAI
 
-# Commented out to prevent overriding hackathon injected variables
-# load_dotenv()
+# 1. MUST EXACTLY MATCH THE CHECKBOX (No default for HF_TOKEN)
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
+HF_TOKEN = os.getenv("HF_TOKEN")
 
-MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o")
-HF_TOKEN = os.environ.get("HF_TOKEN", "dummy") 
-
-# STRICT PHASE 2 LLM PROXY INITIALIZATION
+# 2. STRICT PROXY INITIALIZATION
+# We grab API_BASE_URL and API_KEY from os.environ to strictly use the proxy.
 client = OpenAI(
-    base_url=os.environ.get("API_BASE_URL"),
-    api_key=os.environ.get("API_KEY", os.environ.get("HF_TOKEN"))
+    base_url=os.environ.get("API_BASE_URL", API_BASE_URL),
+    api_key=os.environ.get("API_KEY", HF_TOKEN)
 )
 
 LOCAL_ENV_URL = "http://localhost:8000"
@@ -66,6 +66,7 @@ def solve_task(task_id: str):
         steps += 1
         prompt = f"Current Logs: {json.dumps(obs.get('current_logs', []))}\nSystem Status: {obs.get('system_status')}\nBlocked IPs: {obs.get('blocked_ips')}"
         
+        # We do NOT wrap this in try/except so if their proxy fails, it properly throws an error!
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
@@ -79,7 +80,11 @@ def solve_task(task_id: str):
         if raw_content.startswith("```json"):
             raw_content = raw_content.replace("```json\n", "").replace("\n```", "")
         
-        action = json.loads(raw_content)
+        try:
+            action = json.loads(raw_content)
+        except json.JSONDecodeError:
+            action = {"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"}
+            
         action_str = json.dumps(action).replace('\n', ' ')
 
         step_resp = requests.post(f"{LOCAL_ENV_URL}/step", json={"session_id": session_id, "action": action}, timeout=10)
@@ -95,6 +100,7 @@ def solve_task(task_id: str):
         rewards.append(reward)
         log_step(step=steps, action=action_str, reward=reward, done=done, error=None)
     
+    # EXACT MATCH: Clamp strictly between 0.01 and 0.99
     final_score = max(0.01, min(0.99, float(final_score)))
     success = final_score > 0.1
     log_end(success=success, steps=steps, score=final_score, rewards=rewards)
@@ -111,3 +117,4 @@ if __name__ == "__main__":
 
     for t in tasks:
         solve_task(t)
+        
