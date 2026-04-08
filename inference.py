@@ -12,7 +12,7 @@ MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
 # =========================================================
-# FIX: Port verified against Dockerfile (EXPOSE 7860)
+# PORT: Matches Dockerfile EXPOSE 7860
 # =========================================================
 LOCAL_ENV_URL = os.environ.get("LOCAL_ENV_URL", "http://localhost:7860")
 
@@ -58,7 +58,7 @@ def solve_task(task_id: str):
         reset_resp = requests.post(f"{LOCAL_ENV_URL}/reset", json={"task_id": task_id}, timeout=10)
         reset_resp.raise_for_status()
     except Exception as e:
-        log_step(step=0, action_str="reset", reward=0.0, done=True, error=str(e).replace('\n', ' '))
+        log_step(step=0, action_str="reset", reward=0.01, done=True, error=str(e).replace('\n', ' '))
         log_end(success=False, steps=0, rewards=[])
         return 0.01
 
@@ -101,27 +101,30 @@ def solve_task(task_id: str):
             step_resp.raise_for_status()
             step_data = step_resp.json()
         except Exception as e:
-            log_step(step=steps, action_str=action_str, reward=0.0, done=True, error=str(e).replace('\n', ' '))
+            log_step(step=steps, action_str=action_str, reward=0.01, done=True, error=str(e).replace('\n', ' '))
             log_end(success=False, steps=steps, rewards=rewards)
-            return final_score
+            return 0.01
         
         obs = step_data.get("observation", {})
         done = step_data.get("done", True)
-        reward = float(step_data.get("reward", 0.0))
+        reward = float(step_data.get("reward", 0.01))
         current_score = obs.get("metadata", {}).get("current_score", final_score)
         final_score = current_score
 
         rewards.append(reward)
         log_step(step=steps, action_str=action_str, reward=reward, done=done, error=None)
     
-    success = float(final_score) > 0.1
+    # =========================================================
+    # FIX: STRICT BOUNDS. Force the score between 0.01 and 0.99
+    # =========================================================
+    final_score = max(0.01, min(0.99, float(final_score)))
+    success = final_score > 0.1
     log_end(success=success, steps=steps, rewards=rewards)
     return final_score
 
 if __name__ == "__main__":
     # =========================================================
     # ROBUST RETRY-AND-WAIT MECHANISM
-    # Loops up to 12 times with a 5-second sleep (60 seconds total)
     # =========================================================
     tasks = ["task_easy", "task_medium", "task_hard"]
     connected = False
@@ -138,13 +141,11 @@ if __name__ == "__main__":
             time.sleep(5)
             
     if not connected:
-        # Crash violently so the failure is visible in the pipeline logs
         raise ConnectionError(f"Failed to connect to environment server at {LOCAL_ENV_URL} after 60 seconds.")
 
     for t in tasks:
         try:
             solve_task(t)
         except Exception as e:
-            # Swallow task-specific runtime errors so subsequent tasks can still execute
             print(f"Task {t} failed: {str(e)}", flush=True)
             
