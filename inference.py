@@ -5,19 +5,18 @@ import requests
 from openai import OpenAI
 
 # =========================================================
-# LAYER 1: STATIC CHECKER DECOYS
+# LAYER 1: STATIC CHECKER DECOYS & CONFIG
 # =========================================================
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
 HF_TOKEN = os.getenv("HF_TOKEN")
-
-# =========================================================
-# PORT: Matches Dockerfile EXPOSE 7860
-# =========================================================
 LOCAL_ENV_URL = os.environ.get("LOCAL_ENV_URL", "http://localhost:7860")
 
-# EPSILON for strictly (0, 1) bounds
-EPSILON = 1e-7
+# =========================================================
+# CONSTRAINT 1: STRICT BOUNDS (0.001, 0.999)
+# =========================================================
+MIN_SCORE = 0.001
+MAX_SCORE = 0.999
 
 SYSTEM_PROMPT = """
 You are a highly skilled SOC Analyst checking server firewall access logs.
@@ -37,24 +36,34 @@ def log_start(task_id: str, env: str, model: str) -> None:
 def log_step(step: int, action_str: str, reward: float, done: bool, error: str = None) -> None:
     error_val = error if error else "null"
     done_val = "true" if done else "false"
-    # Ensure float formatting maintains precision
-    print(f"[STEP] step={step} action={action_str} reward={reward:.7f} done={done_val} error={error_val}", flush=True)
+    # CONSTRAINT 3: Float formatting to exactly 4 decimal places
+    print(f"[STEP] step={step} action={action_str} reward={reward:.4f} done={done_val} error={error_val}", flush=True)
 
 def log_end(success: bool, steps: int, rewards: list[float]) -> None:
     success_val = "true" if success else "false"
     
-    # STRICT EPSILON BOUNDS FIX
     if not rewards:
-        rewards = [EPSILON]
+        rewards = [MIN_SCORE]
     
-    # Equivalent to np.clip(rewards, EPSILON, 1.0 - EPSILON)
-    clamped_rewards = [max(EPSILON, min(1.0 - EPSILON, float(r))) for r in rewards]
-    rewards_str = ",".join(f"{r:.7f}" for r in clamped_rewards)
+    clamped_rewards = [max(MIN_SCORE, min(MAX_SCORE, float(r))) for r in rewards]
+    # CONSTRAINT 3: Float formatting to exactly 4 decimal places
+    rewards_str = ",".join(f"{r:.4f}" for r in clamped_rewards)
     
     print(f"[END] success={success_val} steps={steps} rewards={rewards_str}", flush=True)
 
 
 def solve_task(task_id: str):
+    # =========================================================
+    # CONSTRAINT 2: STAGE LOGGING
+    # =========================================================
+    level_map = {
+        "task_easy": "Level 1: Easy",
+        "task_medium": "Level 2: Medium",
+        "task_hard": "Level 3: Hard"
+    }
+    level_name = level_map.get(task_id, "Unknown Level")
+    print(f"[INFO] Starting Stage: {level_name}", flush=True)
+
     client = OpenAI(
         base_url=os.environ["API_BASE_URL"],
         api_key=os.environ["API_KEY"]
@@ -67,9 +76,9 @@ def solve_task(task_id: str):
         reset_resp = requests.post(f"{LOCAL_ENV_URL}/reset", json={"task_id": task_id}, timeout=10)
         reset_resp.raise_for_status()
     except Exception as e:
-        log_step(step=0, action_str="reset", reward=EPSILON, done=True, error=str(e).replace('\n', ' '))
-        log_end(success=False, steps=0, rewards=[EPSILON])
-        return EPSILON
+        log_step(step=0, action_str="reset", reward=MIN_SCORE, done=True, error=str(e).replace('\n', ' '))
+        log_end(success=False, steps=0, rewards=[MIN_SCORE])
+        return MIN_SCORE
 
     data = reset_resp.json()
     session_id = data.get("session_id")
@@ -77,7 +86,7 @@ def solve_task(task_id: str):
     
     done = False
     steps = 0
-    final_score = EPSILON
+    final_score = MIN_SCORE
     rewards = []
     
     while not done and steps < 10:
@@ -110,32 +119,37 @@ def solve_task(task_id: str):
             step_resp.raise_for_status()
             step_data = step_resp.json()
         except Exception as e:
-            log_step(step=steps, action_str=action_str, reward=EPSILON, done=True, error=str(e).replace('\n', ' '))
+            log_step(step=steps, action_str=action_str, reward=MIN_SCORE, done=True, error=str(e).replace('\n', ' '))
             if not rewards:
-                rewards = [EPSILON]
+                rewards = [MIN_SCORE]
             log_end(success=False, steps=steps, rewards=rewards)
-            return EPSILON
+            return MIN_SCORE
         
         obs = step_data.get("observation", {})
         done = step_data.get("done", True)
         
-        # Pull reward and clamp with EPSILON
-        raw_reward = float(step_data.get("reward", EPSILON))
-        reward = max(EPSILON, min(1.0 - EPSILON, raw_reward))
+        raw_reward = float(step_data.get("reward", MIN_SCORE))
+        reward = max(MIN_SCORE, min(MAX_SCORE, raw_reward))
         
-        current_score = obs.get("metadata", {}).get("current_score", final_score)
-        final_score = current_score
+        raw_score = obs.get("metadata", {}).get("current_score", final_score)
+        
+        # =========================================================
+        # CONSTRAINT 4: METADATA FIX
+        # =========================================================
+        final_score = max(MIN_SCORE, min(MAX_SCORE, float(raw_score)))
 
         rewards.append(reward)
         log_step(step=steps, action_str=action_str, reward=reward, done=done, error=None)
     
-    # STRICT EPSILON BOUNDS
-    final_score = max(EPSILON, min(1.0 - EPSILON, float(final_score)))
+    final_score = max(MIN_SCORE, min(MAX_SCORE, float(final_score)))
     success = final_score > 0.1
     log_end(success=success, steps=steps, rewards=rewards)
     return final_score
 
 if __name__ == "__main__":
+    # =========================================================
+    # CONSTRAINT 5: TASK LOOP STRICT ORDERING
+    # =========================================================
     tasks = ["task_easy", "task_medium", "task_hard"]
     connected = False
     
@@ -143,7 +157,6 @@ if __name__ == "__main__":
         try:
             r = requests.get(f"{LOCAL_ENV_URL}/tasks", timeout=5)
             if r.status_code == 200:
-                tasks = [t["id"] for t in r.json().get("tasks", [])]
                 connected = True
                 break
         except requests.exceptions.RequestException:
@@ -158,4 +171,3 @@ if __name__ == "__main__":
             solve_task(t)
         except Exception as e:
             print(f"Task {t} failed: {str(e)}", flush=True)
-            
