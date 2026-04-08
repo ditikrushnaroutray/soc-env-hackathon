@@ -35,13 +35,8 @@ app = create_app(
     max_concurrent_envs=1,
 )
 
-# Global session storage for grading
 SESSIONS = {}
 
-# ---------------------------------------------------------
-# NUCLEAR OPTION: Middleware to hijack the root endpoint
-# This intercepts the request BEFORE openenv can block it.
-# ---------------------------------------------------------
 class RootInterceptMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if request.url.path == "/" and request.method == "GET":
@@ -61,11 +56,9 @@ class RootInterceptMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 app.add_middleware(RootInterceptMiddleware)
-# ---------------------------------------------------------
 
 @app.get("/health", include_in_schema=False)
 def health():
-    """Health check endpoint."""
     return {"status": "ok"}
 
 @app.get("/tasks")
@@ -86,15 +79,11 @@ def get_tasks():
 
 @app.get("/baseline")
 def run_baseline():
-    """
-    Programmatically triggers the inference script and returns actual scores.
-    """
     import subprocess
     import os
     import re
     
     script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../inference.py"))
-    
     if not os.path.exists(script_path):
         script_path = "inference.py"
     
@@ -109,9 +98,9 @@ def run_baseline():
         output = result.stdout + result.stderr
         
         scores = {
-            "task_easy": 0.0,
-            "task_medium": 0.0,
-            "task_hard": 0.0
+            "task_easy": 0.01,  # STRICT BOUNDS FIX
+            "task_medium": 0.01, # STRICT BOUNDS FIX
+            "task_hard": 0.01   # STRICT BOUNDS FIX
         }
         
         for task_name in ["task_easy", "task_medium", "task_hard"]:
@@ -120,7 +109,7 @@ def run_baseline():
             if match:
                 scores[task_name] = float(match.group(1))
             
-            if scores[task_name] == 0.0:
+            if scores[task_name] <= 0.01:
                 pattern = rf"final[_\s]score[=:\s]+([0-9.]+)"
                 match = re.search(pattern, output, re.IGNORECASE)
                 if match:
@@ -134,37 +123,35 @@ def run_baseline():
     except subprocess.TimeoutExpired:
         return {
             "error": "Inference timeout (>300s)",
-            "task_easy": 0.0,
-            "task_medium": 0.0,
-            "task_hard": 0.0
+            "task_easy": 0.01,
+            "task_medium": 0.01,
+            "task_hard": 0.01
         }
     except Exception as e:
         return {
             "error": str(e),
-            "task_easy": 0.0,
-            "task_medium": 0.0,
-            "task_hard": 0.0
+            "task_easy": 0.01,
+            "task_medium": 0.01,
+            "task_hard": 0.01
         }
 
 @app.get("/grader")
 def run_grader(session_id: str):
-    """
-    Returns the score for a session from the SESSIONS registry.
-    """
     try:
         from .soc_analyst_env_environment import SESSIONS
         
         if session_id in SESSIONS:
             env = SESSIONS[session_id]
-            score = getattr(env, 'total_score', 0.0)
+            score = getattr(env, 'total_score', 0.01)
             score = max(0.01, min(0.99, float(score)))
             return {"session_id": session_id, "final_score": score}
-        return {"session_id": session_id, "final_score": 0.0, "error": "Session not found"}
+            
+        # STRICT BOUNDS FIX: Return 0.01 on error, NOT 0.0
+        return {"session_id": session_id, "final_score": 0.01, "error": "Session not found"}
     except Exception as e:
-        return {"session_id": session_id, "final_score": 0.0, "error": str(e)}
+        return {"session_id": session_id, "final_score": 0.01, "error": str(e)}
 
 def main(host: str = "0.0.0.0", port: int = 8000):
-    """Entry point for direct execution via uv run or python -m."""
     import uvicorn
     uvicorn.run(app, host=host, port=port)
 
@@ -174,3 +161,4 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
     main(port=args.port)
+    
