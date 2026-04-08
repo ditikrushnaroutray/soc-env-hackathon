@@ -2,31 +2,18 @@ import os
 import time
 import json
 from openai import OpenAI
-from dotenv import load_dotenv
 
-load_dotenv()
+# Commented out to prevent overriding hackathon injected variables
+# load_dotenv()
 
-# PHASE 1 STATIC CHECKER REQUIREMENTS
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
-HF_TOKEN = os.getenv("HF_TOKEN")
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o")
+HF_TOKEN = os.environ.get("HF_TOKEN", "dummy") 
 
-# EXACT MATCH FOR PHASE 2 GRADER
-if "API_KEY" in os.environ and "API_BASE_URL" in os.environ:
-    client = OpenAI(
-        base_url=os.environ["API_BASE_URL"],
-        api_key=os.environ["API_KEY"]
-    )
-elif "API_KEY" in os.environ:
-    client = OpenAI(
-        base_url=API_BASE_URL,
-        api_key=os.environ["API_KEY"]
-    )
-else:
-    client = OpenAI(
-        base_url=API_BASE_URL,
-        api_key=HF_TOKEN or "dummy_token"
-    )
+# STRICT PHASE 2 LLM PROXY INITIALIZATION
+client = OpenAI(
+    base_url=os.environ.get("API_BASE_URL"),
+    api_key=os.environ.get("API_KEY", os.environ.get("HF_TOKEN"))
+)
 
 LOCAL_ENV_URL = "http://localhost:8000"
 
@@ -79,8 +66,6 @@ def solve_task(task_id: str):
         steps += 1
         prompt = f"Current Logs: {json.dumps(obs.get('current_logs', []))}\nSystem Status: {obs.get('system_status')}\nBlocked IPs: {obs.get('blocked_ips')}"
         
-        # We removed the try/except around the LLM call. If their proxy is broken, let it crash the script 
-        # so their system registers an actual error instead of a fake "success" with 0 API calls.
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
