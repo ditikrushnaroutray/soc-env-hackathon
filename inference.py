@@ -16,6 +16,9 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 # =========================================================
 LOCAL_ENV_URL = os.environ.get("LOCAL_ENV_URL", "http://localhost:7860")
 
+# EPSILON for strictly (0, 1) bounds
+EPSILON = 1e-7
+
 SYSTEM_PROMPT = """
 You are a highly skilled SOC Analyst checking server firewall access logs.
 Your ONLY GOAL is to isolate threats (status_code >= 400 or suspicious user_agent) by returning exactly a JSON payload.
@@ -34,24 +37,24 @@ def log_start(task_id: str, env: str, model: str) -> None:
 def log_step(step: int, action_str: str, reward: float, done: bool, error: str = None) -> None:
     error_val = error if error else "null"
     done_val = "true" if done else "false"
-    print(f"[STEP] step={step} action={action_str} reward={reward:.2f} done={done_val} error={error_val}", flush=True)
+    # Ensure float formatting maintains precision
+    print(f"[STEP] step={step} action={action_str} reward={reward:.7f} done={done_val} error={error_val}", flush=True)
 
 def log_end(success: bool, steps: int, rewards: list[float]) -> None:
     success_val = "true" if success else "false"
-    # STRICT BOUNDS FIX: If rewards is empty, force it to [0.01] so sum() is never 0.0
-    if not rewards:
-        rewards = [0.01]
     
-    # Also mathematically clamp every single printed reward just to be absolutely certain
-    clamped_rewards = [max(0.01, min(0.99, r)) for r in rewards]
-    rewards_str = ",".join(f"{r:.2f}" for r in clamped_rewards)
+    # STRICT EPSILON BOUNDS FIX
+    if not rewards:
+        rewards = [EPSILON]
+    
+    # Equivalent to np.clip(rewards, EPSILON, 1.0 - EPSILON)
+    clamped_rewards = [max(EPSILON, min(1.0 - EPSILON, float(r))) for r in rewards]
+    rewards_str = ",".join(f"{r:.7f}" for r in clamped_rewards)
+    
     print(f"[END] success={success_val} steps={steps} rewards={rewards_str}", flush=True)
 
 
 def solve_task(task_id: str):
-    # =========================================================
-    # LAYER 2: STRICT PROXY KEYS
-    # =========================================================
     client = OpenAI(
         base_url=os.environ["API_BASE_URL"],
         api_key=os.environ["API_KEY"]
@@ -64,9 +67,9 @@ def solve_task(task_id: str):
         reset_resp = requests.post(f"{LOCAL_ENV_URL}/reset", json={"task_id": task_id}, timeout=10)
         reset_resp.raise_for_status()
     except Exception as e:
-        log_step(step=0, action_str="reset", reward=0.01, done=True, error=str(e).replace('\n', ' '))
-        log_end(success=False, steps=0, rewards=[0.01]) # FIX: Never pass empty array
-        return 0.01
+        log_step(step=0, action_str="reset", reward=EPSILON, done=True, error=str(e).replace('\n', ' '))
+        log_end(success=False, steps=0, rewards=[EPSILON])
+        return EPSILON
 
     data = reset_resp.json()
     session_id = data.get("session_id")
@@ -74,7 +77,7 @@ def solve_task(task_id: str):
     
     done = False
     steps = 0
-    final_score = 0.01
+    final_score = EPSILON
     rewards = []
     
     while not done and steps < 10:
@@ -107,18 +110,18 @@ def solve_task(task_id: str):
             step_resp.raise_for_status()
             step_data = step_resp.json()
         except Exception as e:
-            log_step(step=steps, action_str=action_str, reward=0.01, done=True, error=str(e).replace('\n', ' '))
+            log_step(step=steps, action_str=action_str, reward=EPSILON, done=True, error=str(e).replace('\n', ' '))
             if not rewards:
-                rewards = [0.01] # FIX: Never pass empty array
+                rewards = [EPSILON]
             log_end(success=False, steps=steps, rewards=rewards)
-            return 0.01
+            return EPSILON
         
         obs = step_data.get("observation", {})
         done = step_data.get("done", True)
-        reward = float(step_data.get("reward", 0.01))
         
-        # STRICT BOUNDS FIX: Clamp the step reward immediately
-        reward = max(0.01, min(0.99, reward))
+        # Pull reward and clamp with EPSILON
+        raw_reward = float(step_data.get("reward", EPSILON))
+        reward = max(EPSILON, min(1.0 - EPSILON, raw_reward))
         
         current_score = obs.get("metadata", {}).get("current_score", final_score)
         final_score = current_score
@@ -126,18 +129,13 @@ def solve_task(task_id: str):
         rewards.append(reward)
         log_step(step=steps, action_str=action_str, reward=reward, done=done, error=None)
     
-    # =========================================================
-    # FIX: STRICT BOUNDS. Force the score between 0.01 and 0.99
-    # =========================================================
-    final_score = max(0.01, min(0.99, float(final_score)))
+    # STRICT EPSILON BOUNDS
+    final_score = max(EPSILON, min(1.0 - EPSILON, float(final_score)))
     success = final_score > 0.1
     log_end(success=success, steps=steps, rewards=rewards)
     return final_score
 
 if __name__ == "__main__":
-    # =========================================================
-    # ROBUST RETRY-AND-WAIT MECHANISM
-    # =========================================================
     tasks = ["task_easy", "task_medium", "task_hard"]
     connected = False
     
