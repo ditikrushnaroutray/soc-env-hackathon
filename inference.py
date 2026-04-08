@@ -2,6 +2,7 @@ import os
 import json
 import time
 import requests
+import re
 from openai import OpenAI
 
 # =========================================================
@@ -18,9 +19,13 @@ LOCAL_ENV_URL = os.environ.get("LOCAL_ENV_URL", "http://localhost:7860")
 MIN_SCORE = 0.001
 MAX_SCORE = 0.999
 
+# =========================================================
+# REFINED PROMPT: Forcing raw JSON output
+# =========================================================
 SYSTEM_PROMPT = """
 You are a highly skilled SOC Analyst checking server firewall access logs.
 Your ONLY GOAL is to isolate threats (status_code >= 400 or suspicious user_agent) by returning exactly a JSON payload.
+DO NOT include markdown code blocks. Return ONLY the raw JSON object.
 Valid Action Types: "block_ip", "allow_ip", or "escalate".
 JSON SCHEMA TO EXACTLY MATCH:
 {
@@ -36,7 +41,7 @@ def log_start(task_id: str, env: str, model: str) -> None:
 def log_step(step: int, action_str: str, reward: float, done: bool, error: str = None) -> None:
     error_val = error if error else "null"
     done_val = "true" if done else "false"
-    # CONSTRAINT 3: Float formatting to exactly 4 decimal places
+    # Float formatting to exactly 4 decimal places
     print(f"[STEP] step={step} action={action_str} reward={reward:.4f} done={done_val} error={error_val}", flush=True)
 
 def log_end(success: bool, steps: int, rewards: list[float]) -> None:
@@ -46,7 +51,7 @@ def log_end(success: bool, steps: int, rewards: list[float]) -> None:
         rewards = [MIN_SCORE]
     
     clamped_rewards = [max(MIN_SCORE, min(MAX_SCORE, float(r))) for r in rewards]
-    # CONSTRAINT 3: Float formatting to exactly 4 decimal places
+    # Float formatting to exactly 4 decimal places
     rewards_str = ",".join(f"{r:.4f}" for r in clamped_rewards)
     
     print(f"[END] success={success_val} steps={steps} rewards={rewards_str}", flush=True)
@@ -54,7 +59,7 @@ def log_end(success: bool, steps: int, rewards: list[float]) -> None:
 
 def solve_task(task_id: str):
     # =========================================================
-    # CONSTRAINT 2: STAGE LOGGING
+    # STAGE LOGGING
     # =========================================================
     level_map = {
         "task_easy": "Level 1: Easy",
@@ -88,6 +93,7 @@ def solve_task(task_id: str):
     steps = 0
     final_score = MIN_SCORE
     rewards = []
+    consecutive_errors = 0
     
     while not done and steps < 10:
         steps += 1
@@ -103,14 +109,27 @@ def solve_task(task_id: str):
                 temperature=0.1
             )
             raw_content = response.choices[0].message.content.strip()
-            if raw_content.startswith("```json"):
-                raw_content = raw_content.replace("```json\n", "").replace("\n```", "")
-            elif raw_content.startswith("```"):
-                raw_content = raw_content.replace("```\n", "").replace("\n```", "")
             
-            action = json.loads(raw_content)
-        except Exception:
-            action = {"action_type": "escalate", "target_ip": "unknown", "reasoning": "Parse Error"}
+            # =========================================================
+            # ROBUST REGEX JSON PARSING
+            # =========================================================
+            match = re.search(r'\{.*\}', raw_content, re.DOTALL)
+            if match:
+                json_str = match.group(0)
+                action = json.loads(json_str)
+                consecutive_errors = 0 # Reset error counter on success
+            else:
+                raise ValueError("No JSON object found in LLM response.")
+                
+        except Exception as e:
+            action = {"action_type": "escalate", "target_ip": "unknown", "reasoning": f"Parse Error: {str(e)}"}
+            consecutive_errors += 1
+            
+            # =========================================================
+            # ANTI-LOOP SAFEGUARD
+            # =========================================================
+            if consecutive_errors >= 2:
+                done = True  # Force game to end if AI is completely broken
             
         action_str = json.dumps(action).replace('\n', ' ')
 
@@ -126,16 +145,17 @@ def solve_task(task_id: str):
             return MIN_SCORE
         
         obs = step_data.get("observation", {})
-        done = step_data.get("done", True)
+        
+        # Merge server's done status with our local anti-loop done status
+        server_done = step_data.get("done", True)
+        done = done or server_done
         
         raw_reward = float(step_data.get("reward", MIN_SCORE))
         reward = max(MIN_SCORE, min(MAX_SCORE, raw_reward))
         
         raw_score = obs.get("metadata", {}).get("current_score", final_score)
         
-        # =========================================================
-        # CONSTRAINT 4: METADATA FIX
-        # =========================================================
+        # Clamp metadata score
         final_score = max(MIN_SCORE, min(MAX_SCORE, float(raw_score)))
 
         rewards.append(reward)
@@ -147,9 +167,6 @@ def solve_task(task_id: str):
     return final_score
 
 if __name__ == "__main__":
-    # =========================================================
-    # CONSTRAINT 5: TASK LOOP STRICT ORDERING
-    # =========================================================
     tasks = ["task_easy", "task_medium", "task_hard"]
     connected = False
     
@@ -171,3 +188,4 @@ if __name__ == "__main__":
             solve_task(t)
         except Exception as e:
             print(f"Task {t} failed: {str(e)}", flush=True)
+            
