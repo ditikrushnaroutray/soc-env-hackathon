@@ -11,7 +11,7 @@ Our routes are matched first by FastAPI (first-registered wins for same path).
 The SDK's WebSocket, /schema, /metadata, /mcp routes are also available.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from openenv.core.env_server.http_server import HTTPEnvServer
@@ -34,6 +34,20 @@ app = FastAPI(
     description="OpenEnv-compliant SOC Analyst reinforcement learning environment.",
     version="2.0.0",
 )
+
+@app.middleware("http")
+async def fix_scaler_grader_bug(request: Request, call_next):
+    if request.url.path == "/reset" and request.method == "POST":
+        body = await request.body()
+        if not body or body == b"null":
+            async def mock_receive():
+                return {"type": "http.request", "body": b"{}"}
+            request._receive = mock_receive
+        else:
+            async def mock_receive():
+                return {"type": "http.request", "body": body}
+            request._receive = mock_receive
+    return await call_next(request)
 
 
 # ══════════════════════════════════════════════════════════════════
