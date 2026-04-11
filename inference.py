@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
 """
-Hardened baseline inference agent for SOC Analyst Environment.
+Multi-Agent heuristic inference for SOC Analyst Environment.
 
-Phase-2 Hackathon compliant:
-  - Structured stdout: [START], [STEP], [END] in exact format
-  - Booleans as lowercase true/false
-  - reward/rewards formatted to .2f, score to .3f
-  - rewards list comma-separated with NO SPACES
-  - Score clamped to (0.001, 0.999)
-  - Always flush=True
-  - NEVER exits non-zero on expected errors
-  - Always emits [END] then exits 0
+Phase 3 — Lightweight Multi-Agent Team
+────────────────────────────────────────
+Two cooperating agents process observations in a pipeline:
 
-Usage:
-    export API_KEY="your-key"
-    export API_BASE_URL="https://api.openai.com/v1"
-    export MODEL_NAME="gpt-4o"
-    export ENV_URL="http://localhost:7860"
-    python inference.py
+  Agent 1 (Tier-1 Triage):
+    Scans current_logs, classifies every IP as BENIGN, SUSPICIOUS,
+    or MALICIOUS using heuristic rules (status codes, user-agents,
+    request paths, known scanner signatures).  Outputs a filtered
+    list of threat candidates.
+
+  Agent 2 (Incident Responder):
+    Receives the filtered candidates from Agent 1, identifies the
+    likely MITRE ATT&CK stage from request-path patterns, and
+    decides the action (block_ip / allow_ip / escalate) plus
+    priority ordering so the most critical IP is handled first.
+
+The __main__ loop drives the /reset → /step cycle, feeding
+observations through both agents until done=True.
+
+Structured stdout: [START], [STEP], [END] in exact autograder format.
 """
 
 import os
@@ -33,25 +37,12 @@ import requests
 # ═══════════════════════════════════════════════════════════════════
 API_KEY = os.environ.get("API_KEY")
 API_BASE_URL = os.environ.get("API_BASE_URL")
-MODEL_NAME = os.environ.get("MODEL_NAME", "default-model")
+MODEL_NAME = os.environ.get("MODEL_NAME", "multi-agent-heuristic")
 ENV_URL = os.environ.get("ENV_URL") or "http://localhost:7860"
 
 MIN_SCORE = 0.001
 MAX_SCORE = 0.999
 MAX_STEPS = 10
-
-SYSTEM_PROMPT = """
-You are a highly skilled SOC Analyst checking server firewall access logs.
-Your ONLY GOAL is to isolate threats (status_code >= 400 or suspicious user_agent) by returning exactly a JSON payload.
-DO NOT include markdown code blocks. Return ONLY the raw JSON object.
-Valid Action Types: "block_ip", "allow_ip", or "escalate".
-JSON SCHEMA TO EXACTLY MATCH:
-{
-  "action_type": "block_ip",
-  "target_ip": "192.168.x.x",
-  "reasoning": "Detected 500 status code indicating SQL Injection attempt."
-}
-"""
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -76,7 +67,7 @@ def log_step(step: int, action_str: str, reward: float, done: bool, error: str =
 def log_end(task_id: str, success: bool, steps: int, score: float, rewards: list) -> None:
     """
     Print [END] line with exact formatting.
-    
+
     - success as lowercase true/false
     - score as .3f
     - rewards as comma-separated .2f with NO SPACES
@@ -99,42 +90,316 @@ def log_end(task_id: str, success: bool, steps: int, score: float, rewards: list
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 3. HEURISTIC AGENT (LOCAL FALLBACK)
+# 3. AGENT 1 — TIER-1 TRIAGE
 # ═══════════════════════════════════════════════════════════════════
 
-def heuristic_decide(observation: dict) -> dict:
-    """
-    Local heuristic agent that doesn't require an LLM API.
-    
-    Strategy: Find the first IP with status_code >= 400 and block it.
-    If none found, escalate the first IP.
-    """
-    logs = observation.get("current_logs", [])
+# Known benign signatures — never block these.
+_BENIGN_SUBNETS = ("192.168.", "172.16.", "172.17.", "172.18.", "172.19.",
+                   "172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
+                   "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
+                   "172.30.", "172.31.")
 
-    # Find malicious IPs (status >= 400)
-    malicious_ips = {}
+_BENIGN_USER_AGENTS = {
+    "InternalMonitor",   # internal health checker
+    "Nessus",            # authorised vulnerability scanner
+}
+
+_BENIGN_PATHS = frozenset({
+    "/", "/health", "/metrics", "/favicon.ico",
+    "/api/v1/health", "/api/v1/dashboard", "/api/v1/products",
+    "/api/v1/settings", "/api/v1/notifications", "/api/v1/cart",
+    "/api/v1/reports", "/images/hero.png", "/images/logo.png",
+    "/static/css/style.css",
+})
+
+# Suspicious request-path patterns (regex).
+_SUSPICIOUS_PATH_PATTERNS = [
+    re.compile(r"(union|select|drop|insert|delete)\b", re.IGNORECASE),   # SQLi
+    re.compile(r"['\";].*--"),                                            # SQLi
+    re.compile(r"/debug/exec", re.IGNORECASE),                           # RCE
+    re.compile(r"\bcmd=", re.IGNORECASE),                                # RCE
+    re.compile(r"/uploads?/.*\.(php|jsp|asp)", re.IGNORECASE),           # Webshell
+    re.compile(r"/admin", re.IGNORECASE),                                # Admin probe
+    re.compile(r"/wp-admin", re.IGNORECASE),                             # WP probe
+    re.compile(r"\.env$", re.IGNORECASE),                                # Env leak
+    re.compile(r"/webhook/outbound", re.IGNORECASE),                     # Exfil
+    re.compile(r"action=create.*role=admin", re.IGNORECASE),             # Backdoor
+    re.compile(r"export=csv|dump\?tables=|show=secrets", re.IGNORECASE), # Data harvest
+    re.compile(r"/(sitemap\.xml|robots\.txt|\.well-known/)", re.IGNORECASE),  # Recon
+    re.compile(r"privesc|/shell\.", re.IGNORECASE),                      # Priv esc / shell
+]
+
+# Suspicious user-agent patterns.
+_SUSPICIOUS_UA_PATTERNS = [
+    re.compile(r"python-requests", re.IGNORECASE),
+    re.compile(r"curl/", re.IGNORECASE),
+    re.compile(r"sqlmap", re.IGNORECASE),
+    re.compile(r"Googlebot.*compatible", re.IGNORECASE),  # Spoofed Googlebot
+]
+
+
+def _is_benign_user_agent(ua: str) -> bool:
+    """Check if user-agent belongs to a known benign internal service."""
+    for sig in _BENIGN_USER_AGENTS:
+        if sig in ua:
+            return True
+    return False
+
+
+def _is_internal_ip(ip: str) -> bool:
+    """Check if IP is in a known internal/private range."""
+    return any(ip.startswith(prefix) for prefix in _BENIGN_SUBNETS) or ip.startswith("10.")
+
+
+def tier1_triage(logs: list, blocked_ips: list) -> list:
+    """
+    Agent 1: Tier-1 Triage.
+
+    Scans all logs and produces a list of IP assessments:
+    [
+        {
+            "ip": "x.x.x.x",
+            "verdict": "MALICIOUS" | "SUSPICIOUS" | "BENIGN",
+            "reasons": ["..."],
+            "score": float,   # threat score 0..1
+            "log_count": int,
+            "stages_detected": [...],
+        },
+        ...
+    ]
+
+    IPs already blocked are excluded.
+    """
+    ip_data = {}
+
     for log in logs:
         ip = log.get("source_ip", "")
-        status = log.get("status_code", 200)
-        if status >= 400:
-            malicious_ips[ip] = malicious_ips.get(ip, 0) + 1
+        if not ip or ip in blocked_ips:
+            continue
 
-    if malicious_ips:
-        # Pick the IP with the most malicious entries
-        worst_ip = max(malicious_ips, key=malicious_ips.get)
+        if ip not in ip_data:
+            ip_data[ip] = {
+                "ip": ip,
+                "reasons": [],
+                "score": 0.0,
+                "log_count": 0,
+                "status_codes": [],
+                "paths": [],
+                "user_agents": set(),
+                "path_flags": [],
+            }
+
+        entry = ip_data[ip]
+        entry["log_count"] += 1
+        entry["status_codes"].append(log.get("status_code", 200))
+        entry["paths"].append(log.get("request_path", "/"))
+        entry["user_agents"].add(log.get("user_agent", ""))
+
+    # ── Score each IP ─────────────────────────────────────────────
+    results = []
+
+    for ip, data in ip_data.items():
+        score = 0.0
+        reasons = []
+
+        ua_str = " | ".join(data["user_agents"])
+
+        # Rule 1: Known benign internal service — BUT only if paths
+        # are ALL innocuous.  A compromised internal host may masquerade
+        # with a legit UA while hitting admin/exfil endpoints.
+        if _is_benign_user_agent(ua_str) and _is_internal_ip(ip):
+            has_suspicious_path = False
+            for path in data["paths"]:
+                for pattern in _SUSPICIOUS_PATH_PATTERNS:
+                    if pattern.search(path):
+                        has_suspicious_path = True
+                        break
+                if has_suspicious_path:
+                    break
+
+            if not has_suspicious_path:
+                data["verdict"] = "BENIGN"
+                data["reasons"] = ["Known internal service/scanner"]
+                data["score"] = 0.0
+                results.append(data)
+                continue
+            # else: fall through to full scoring — paths are suspicious
+
+        # Rule 2: Status code analysis
+        bad_statuses = [s for s in data["status_codes"] if s >= 400]
+        if bad_statuses:
+            score += 0.3
+            reasons.append(f"{len(bad_statuses)}x status>={min(bad_statuses)}")
+
+        # Rule 3: Suspicious user-agent
+        for pattern in _SUSPICIOUS_UA_PATTERNS:
+            if pattern.search(ua_str):
+                score += 0.15
+                reasons.append(f"Suspicious UA: {pattern.pattern}")
+                break
+
+        # Rule 4: Suspicious request paths
+        for path in data["paths"]:
+            for pattern in _SUSPICIOUS_PATH_PATTERNS:
+                if pattern.search(path):
+                    score += 0.2
+                    reasons.append(f"Suspicious path: {path[:60]}")
+                    data["path_flags"].append(pattern.pattern)
+                    break  # one flag per path
+
+        # Rule 5: Volume — many requests from a single IP
+        if data["log_count"] >= 4:
+            score += 0.1
+            reasons.append(f"High volume: {data['log_count']} requests")
+
+        # Rule 6: External IP bonus (non-internal IPs are riskier)
+        if not _is_internal_ip(ip):
+            score += 0.1
+            reasons.append("External IP")
+
+        # Rule 7: Only benign-looking paths
+        all_benign_paths = all(p in _BENIGN_PATHS for p in data["paths"])
+        if all_benign_paths and not bad_statuses:
+            score = max(score - 0.5, 0.0)
+
+        # Clamp score
+        score = min(score, 1.0)
+
+        # Verdict
+        if score >= 0.4:
+            verdict = "MALICIOUS"
+        elif score >= 0.15:
+            verdict = "SUSPICIOUS"
+        else:
+            verdict = "BENIGN"
+
+        data["verdict"] = verdict
+        data["reasons"] = reasons
+        data["score"] = score
+        results.append(data)
+
+    # Sort by score descending (most dangerous first)
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 4. AGENT 2 — INCIDENT RESPONDER
+# ═══════════════════════════════════════════════════════════════════
+
+# MITRE stage detection patterns (ordered by kill-chain severity).
+_STAGE_PATTERNS = [
+    ("exfiltration",         re.compile(r"webhook/outbound|dest=.*size=", re.IGNORECASE)),
+    ("collection",           re.compile(r"export=csv|dump\?tables=|show=secrets", re.IGNORECASE)),
+    ("defense_evasion",      re.compile(r"cmd=(rm|history|del)\b|/admin/config$", re.IGNORECASE)),
+    ("privilege_escalation", re.compile(r"privesc|cmd=(id|sudo)\b", re.IGNORECASE)),
+    ("persistence",          re.compile(r"shell\.(php|jsp|asp)|action=create.*role=admin|/upload$", re.IGNORECASE)),
+    ("execution",            re.compile(r"/debug/exec\?cmd=", re.IGNORECASE)),
+    ("initial_access",       re.compile(r"/api/v\d+/login", re.IGNORECASE)),
+    ("reconnaissance",       re.compile(r"robots\.txt|sitemap\.xml|security\.txt|Googlebot", re.IGNORECASE)),
+]
+
+
+def _detect_stages(paths: list, user_agents: set) -> list:
+    """Detect MITRE kill-chain stages from request paths and UAs."""
+    stages = []
+    searchable = " ".join(paths) + " " + " ".join(user_agents)
+    for stage_name, pattern in _STAGE_PATTERNS:
+        if pattern.search(searchable):
+            if stage_name not in stages:
+                stages.append(stage_name)
+    return stages
+
+
+def incident_responder(triage_results: list, observation: dict) -> dict:
+    """
+    Agent 2: Incident Responder.
+
+    Receives the Tier-1 triage results and decides the best action.
+
+    Strategy for multi-step (task_hard):
+      - Process IPs in priority order (highest threat score first).
+      - Skip BENIGN IPs (allow them implicitly by not acting on them,
+        or explicitly allow them if no threats remain).
+      - BLOCK malicious IPs, prioritising late-stage kill chain activity.
+      - ESCALATE uncertain IPs.
+
+    Strategy for 1-shot (task_easy/medium):
+      - Block the worst IP immediately.
+    """
+    blocked_ips = observation.get("blocked_ips", [])
+    system_status = observation.get("system_status", "Normal")
+
+    # Separate triaged IPs by verdict
+    malicious = [r for r in triage_results if r["verdict"] == "MALICIOUS" and r["ip"] not in blocked_ips]
+    suspicious = [r for r in triage_results if r["verdict"] == "SUSPICIOUS" and r["ip"] not in blocked_ips]
+    benign = [r for r in triage_results if r["verdict"] == "BENIGN" and r["ip"] not in blocked_ips]
+
+    # ── Priority 1: Block the most dangerous malicious IP ─────────
+    if malicious:
+        target = malicious[0]  # already sorted by score (highest first)
+        ip = target["ip"]
+
+        # Detect MITRE stages for richer reasoning
+        stages = _detect_stages(target["paths"], target["user_agents"])
+        stage_str = ", ".join(stages) if stages else "unknown"
+
+        reasoning = (
+            f"MITRE kill chain stages detected: [{stage_str}]. "
+            f"Threat indicators: {'; '.join(target['reasons'][:5])}. "
+            f"Request paths include: {', '.join(target['paths'][:3])}. "
+            f"Blocking IP {ip} to neutralise the attack."
+        )
+
         return {
             "action_type": "block_ip",
-            "target_ip": worst_ip,
-            "reasoning": f"Detected {malicious_ips[worst_ip]} requests with status >= 400 from {worst_ip}. Blocking as likely attack.",
+            "target_ip": ip,
+            "reasoning": reasoning,
         }
 
-    # No obvious threats — escalate the first IP
+    # ── Priority 2: Block suspicious IPs ──────────────────────────
+    if suspicious:
+        target = suspicious[0]
+        ip = target["ip"]
+        stages = _detect_stages(target["paths"], target["user_agents"])
+        stage_str = ", ".join(stages) if stages else "unclassified"
+
+        reasoning = (
+            f"Suspicious activity from {ip}. "
+            f"Possible stages: [{stage_str}]. "
+            f"Indicators: {'; '.join(target['reasons'][:5])}. "
+            f"Blocking as precaution."
+        )
+
+        return {
+            "action_type": "block_ip",
+            "target_ip": ip,
+            "reasoning": reasoning,
+        }
+
+    # ── Priority 3: All threats handled — allow remaining benign ──
+    if benign:
+        target = benign[0]
+        ip = target["ip"]
+        reasoning = (
+            f"All threats neutralised. IP {ip} identified as benign: "
+            f"{'; '.join(target['reasons'][:3]) or 'Normal traffic patterns'}. "
+            f"Allowing normal traffic."
+        )
+        return {
+            "action_type": "allow_ip",
+            "target_ip": ip,
+            "reasoning": reasoning,
+        }
+
+    # ── Fallback: nothing left to do ──────────────────────────────
+    logs = observation.get("current_logs", [])
     if logs:
         first_ip = logs[0].get("source_ip", "unknown")
         return {
             "action_type": "escalate",
             "target_ip": first_ip,
-            "reasoning": "No clear threats detected. Escalating for human review.",
+            "reasoning": "No actionable threats remaining. Escalating for human review.",
         }
 
     return {
@@ -145,14 +410,50 @@ def heuristic_decide(observation: dict) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 4. LLM INTERACTION
+# 5. COMBINED MULTI-AGENT DECISION
 # ═══════════════════════════════════════════════════════════════════
+
+def multi_agent_decide(observation: dict) -> dict:
+    """
+    Pipeline: Agent 1 (Triage) → Agent 2 (Incident Responder).
+
+    Returns the final action dict.
+    """
+    logs = observation.get("current_logs", [])
+    blocked_ips = observation.get("blocked_ips", [])
+
+    # Agent 1: Triage
+    triage_results = tier1_triage(logs, blocked_ips)
+
+    # Agent 2: Respond
+    action = incident_responder(triage_results, observation)
+
+    return action
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 6. LLM INTERACTION (OPTIONAL — FALLS BACK TO MULTI-AGENT)
+# ═══════════════════════════════════════════════════════════════════
+
+SYSTEM_PROMPT = """
+You are a highly skilled SOC Analyst checking server firewall access logs.
+Your ONLY GOAL is to isolate threats (status_code >= 400 or suspicious user_agent) by returning exactly a JSON payload.
+DO NOT include markdown code blocks. Return ONLY the raw JSON object.
+Valid Action Types: "block_ip", "allow_ip", or "escalate".
+JSON SCHEMA TO EXACTLY MATCH:
+{
+  "action_type": "block_ip",
+  "target_ip": "192.168.x.x",
+  "reasoning": "Detected 500 status code indicating SQL Injection attempt."
+}
+"""
+
 
 def call_llm(observation: dict) -> dict:
     """
     Call the LLM API to decide on an action.
-    
-    Falls back to heuristic if API is unavailable.
+
+    Falls back to multi-agent heuristic if API is unavailable.
     Uses regex to extract JSON from model response.
     """
     try:
@@ -187,18 +488,18 @@ def call_llm(observation: dict) -> dict:
             raise ValueError("No JSON object found in LLM response.")
 
     except Exception:
-        # Fall back to heuristic on any LLM error
-        return heuristic_decide(observation)
+        # Fall back to multi-agent heuristic on any LLM error
+        return multi_agent_decide(observation)
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 5. TASK SOLVER
+# 7. TASK SOLVER
 # ═══════════════════════════════════════════════════════════════════
 
 def solve_task(task_id: str) -> float:
     """
     Solve a single task.
-    
+
     Guarantees:
       - [START] is printed FIRST before any other logic
       - [END] is ALWAYS printed via try/finally
@@ -240,12 +541,12 @@ def solve_task(task_id: str) -> float:
         while not done and steps < MAX_STEPS:
             steps += 1
 
-            # Decide action
+            # Decide action via multi-agent pipeline (or LLM)
             try:
                 if use_llm:
                     action = call_llm(obs)
                 else:
-                    action = heuristic_decide(obs)
+                    action = multi_agent_decide(obs)
                 consecutive_errors = 0
             except Exception as e:
                 action = {
@@ -309,7 +610,7 @@ def solve_task(task_id: str) -> float:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 6. MAIN ENTRY POINT
+# 8. MAIN ENTRY POINT
 # ═══════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
