@@ -16,9 +16,9 @@ license: bsd-3-clause
 
 # 🛡️ SOC Analyst RL Environment — OpenEnv
 
-**Meta PyTorch Hackathon x Scaler School of Technology — Phase 2 Validated** ✅
+**Meta PyTorch Hackathon x Scaler School of Technology — V2 Architecture Validated** ✅
 
-Train and evaluate AI agents on real-world Security Operations Center (SOC) triage: parsing firewall access logs, identifying attack vectors, isolating threats, and mitigating false positives under strict formatting constraints.
+Train and evaluate AI agents on real-world Security Operations Center (SOC) triage: parsing firewall access logs, tracking adversarial persistence, isolating multi-stage threats, and mitigating false positives under strict compliance constraints.
 
 [![OpenEnv](https://img.shields.io/badge/Framework-OpenEnv-blue.svg)](https://github.com/meta-pytorch/OpenEnv)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -26,82 +26,81 @@ Train and evaluate AI agents on real-world Security Operations Center (SOC) tria
 
 ---
 
-## 🌍 Why SOC Analyst Triage?
+## 🌍 The Asymmetric SOC Challenge
 
-Modern SOC environments are notoriously noisy. Servers receive millions of requests a day, and security analysts face crippling alert fatigue sifting through benign traffic to find the single SQL injection or brute-force attack. This is a high-stakes, universally critical task that requires:
+Modern Security Operations Centers (SOCs) face an asymmetric challenge: adversaries only need to be right once, while defensive infrastructure must parse millions of logs daily with perfect accuracy. Analysts suffer from crippling alert fatigue, forced to manually differentiate between automated vulnerability scanners, legitimate enterprise traffic, and state-sponsored intrusions. 
 
-- **Log Parsing:** Understanding HTTP status codes, paths, and user agents in raw JSON.
-- **Threat Isolation:** Differentiating between normal user traffic, active attacks, and spoofed decoys.
-- **Decision Making:** Choosing whether to strictly block an IP, safely allow it, or escalate to a human analyst.
-- **Strict Compliance:** Outputting decisions in perfect formats required by automated enterprise firewall systems without hallucinating.
-
-This environment lets AI agents practice these crucial skills in a realistic, graded simulation.
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────┐    HTTP POST     ┌──────────────────────────────┐
-│                  │  ──────────────► │   FastAPI Server (:7860)     │
-│   inference.py   │     /reset       │                              │
-│   (Agent)        │     /step        │  ┌────────┐  ┌───────────┐  │
-│                  │  ◄────────────── │  │ Engine │  │ Scenarios │  │
-│  - LLM calls     │    JSON response │  └───┬────┘  └─────┬─────┘  │
-│  - Heuristic     │                  │      │             │        │
-│    fallback      │                  │  ┌───▼─────────────▼─────┐  │
-│  - [START]/[END] │                  │  │   Environment State   │  │
-│    output        │                  │  │  - Score tracking     │  │
-└─────────────────┘                  │  │  - Session mgmt      │  │
-                                     │  │  - Telemetry          │  │
-                                     │  └──────────┬────────────┘  │
-                                     │             │               │
-                                     │  ┌──────────▼────────────┐  │
-                                     │  │ Rubrics │ Dashboard   │  │
-                                     │  └─────────────────────────┘│
-                                     └──────────────────────────────┘
-```
+The OpenEnv SOC Analyst training environment provides a high-stakes, realistic simulation where AI agents must demonstrate mastery in:
+- **Log Telemetry Parsing:** Decoding HTTP status codes, request endpoints, and user-agent signatures.
+- **Threat Isolation & Neutralization:** Differentiating between standard operational traffic, active adversaries, and spoofed internal decoys.
+- **Deterministic Action Selection:** Issuing strict `.json` formatted firewall policies (`block_ip`, `allow_ip`, `escalate`).
+- **Kill-Chain Disruption:** Surviving full episodic attacks and halting adversaries before terminal exfiltration.
 
 ---
 
-## 🎯 Tasks
+## 🏗️ V2 Architecture: Stateful APT Simulation
+
+The V2 environment overhaul introduces a deterministic, 8-stage MITRE ATT&CK kill-chain generator integrated directly into the `task_hard` scenario. By leveraging Pydantic-safe metadata injection, hidden `attack_stage` and `mitre_technique` context is preserved in the generated raw logs. 
+
+The evaluation engine securely tracks adversarial progression across multi-step episodes:
+- **Continuous Engagement:** If an agent neutralizes an early-stage technique (e.g., *Reconnaissance*), the episode continues dynamically.
+- **Terminal Objectives:** If an agent isolates the adversary's terminal objective (e.g., *Data Exfiltration*), the episode victoriously concludes.
+- **Catastrophic Failure:** If an agent restricts legitimate internal network segments (blocking a benign IP) or permits a critical-tier attacker to bypass the firewall, the episode immediately halts with a minimum reward.
+
+---
+
+## 🤖 Autonomous Multi-Agent Inference
+
+To solve the advanced MITRE kill-chain simulation, the reference implementation (`inference.py`) deploys a cooperative, autonomous two-tier heuristic agent team:
+
+- **Agent 1 (Tier-1 Triage):** Acts as the frontline filter. It ingests all raw observation logs and performs high-speed heuristic evaluation—analyzing regex patterns for SQLi/RCE payloads, fingerprinting malicious User-Agents, and cross-referencing against benign subnet whitelists to definitively classify every IP as `BENIGN`, `SUSPICIOUS`, or `MALICIOUS`.
+- **Agent 2 (Incident Responder):** Acts as the tactical decision-maker. Receiving the triaged candidate list, it identifies the specific MITRE ATT&CK stage progression, prioritizes terminal-tier targets (e.g., neutralizing Data Exfiltration over Initial Access), and strictly formats the final JSON payload (`block_ip`, `allow_ip`, or `escalate`) executed against the environment server.
+
+---
+
+## ⚙️ Technical Specifications
+
+| Specification | Implementation Details |
+| :--- | :--- |
+| **Stateful Simulation** | Multi-step episodic tracks dynamically replacing legacy 1-shot task environments. |
+| **Pydantic-Safe Metadata Injection** | Attack stage context securely hidden in raw log dicts, bypassing strict serialization validation on the agent client while persisting in the evaluator engine. |
+| **Tiered Reward Scaling** | Dynamic RL constraint calculation bounded strictly between `(0.001, 0.999)`. Critical actions approach `0.999`; noise-stage mitigation yields partial reinforcement (`~0.35`). |
+| **Heuristic Regex Triage** | Hardened algorithmic signature matching against SQLi, RCE, Webshells, and outbound webhook paths. |
+| **Strict Autograder Compliance** | Exact `[START]`, `[STEP]`, and `[END]` stdout structures enforced with clamped precision and `flush=True` I/O buffering. |
+
+---
+
+## 🎯 Task Matrix
 
 | Task | Difficulty | Scenario | Max Steps | Objective |
 | :--- | :---: | :--- | :---: | :--- |
-| `task_easy` | 🟢 Easy | Brute-Force | 10 | Identify a single IP repeatedly triggering `401 Unauthorized`. |
-| `task_medium` | 🟡 Medium | Distributed SQLi | 10 | Block an attack by identifying `500` server errors from malicious queries. |
-| `task_hard` | 🔴 Hard | Decoys & Noise | 10 | Triage a highly noisy environment containing spoofed decoys and false positives. |
-
-### Scoring
-
-All scores strictly enforce a `(0.001, 0.999)` bound to comply with Phase 2 OpenEnv validation:
-- **Perfect Action:** exact threat isolated / exact safe user allowed = `0.999`
-- **Escalation:** safe fallback to human = `0.500`
-- **Critical Failure:** blocked normal user / allowed hacker / invalid format = `0.001`
+| `task_easy` | 🟢 Easy | Brute-Force | 1 | Identifies standard unauthorized access sweeps triggering `401 Unauthorized`. |
+| `task_medium` | 🟡 Medium | Distributed SQLi | 1 | Terminates an attack by correlating `500` HTTP server errors against malicious queries. |
+| `task_hard` | 🔴 Hard | MITRE Kill-Chain | 10 | Triages a continuous stateful environment, filtering benign noise to halt an 8-stage APT exfiltration attempt. |
 
 ---
 
-## 📐 Action Space
+## 📐 Interface Schemas
 
-Agents must output a strictly formatted JSON payload mapped to this schema:
+### Action Space
+Agents must output a strict JSON payload mapped to the enterprise firewall schema:
 ```python
 class SOCAction(BaseModel):
     action_type: str  # "block_ip" | "allow_ip" | "escalate"
-    target_ip: str    # "192.168.x.x" (Must exist in the current logs)
-    reasoning: str    # Rationale explaining the decision-making process
+    target_ip: str    # "192.168.x.x" (Must structurally match target in current logs)
+    reasoning: str    # Analytical justification explaining the SOC triage process
 ```
 
-## 👁️ Observation Space
-
-The environment feeds the agent the current state of the server firewall:
+### Observation Space
+The environment feeds the agent real-time states of the server firewall perimeter:
 ```python
 class SOCObservation(BaseModel):
-    current_logs: list    # Array of dicts: source_ip, request_path, status_code, user_agent, timestamp
-    blocked_ips: list     # State array storing existing firewall bans
-    system_status: str    # High-level assessment ("Normal" or "Under Attack")
-    reward: float         # Reward from the previous action
-    done: bool            # Whether the episode has terminated
-    metadata: dict        # Steps taken, current score, message, threat_intel
+    current_logs: list    # Array: source_ip, request_path, status_code, user_agent, timestamp
+    blocked_ips: list     # State array tracking mitigated adversarial vectors
+    system_status: str    # Evaluated assessment (e.g., "Under Attack — Kill Chain Stage: exfiltration")
+    reward: float         # Scaled RL reward from the sequence action
+    done: bool            # Episode termination flag
+    metadata: dict        # Internal telemetry, current scoring array, threat_intel correlation
 ```
 
 ---
@@ -123,28 +122,23 @@ cd soc-env-hackathon
 # Install dependencies
 pip install -r requirements.txt
 
-# Start the server
+# Start the environment server
 uvicorn soc_analyst_env.server.app:app --host 0.0.0.0 --port 7860
 ```
 
-### Run Inference
+### Run Autonomous Inference
 
-In a separate terminal, run the robust baseline agent:
+In a separate terminal, execute the multi-agent SOC team against the environment bounds:
 
 ```bash
-# Set environment variables
-export API_KEY="your-api-key"
-export API_BASE_URL="https://api.openai.com/v1"
-export MODEL_NAME="gpt-4o"
+# Export the active environment URL
 export ENV_URL="http://localhost:7860"
 
-# Run baseline agent (LLM mode)
-python inference.py
-
-# Or run without API keys (heuristic fallback mode)
-export ENV_URL="http://localhost:7860"
+# Run autonomous multi-agent heuristic team
 python inference.py
 ```
+
+*(Note: The robust baseline supports zero-API-key heuristic environments while remaining fully pluggable for LLM judge integration via `API_KEY` and `API_BASE_URL`.)*
 
 ### Docker Deployment
 
@@ -162,137 +156,49 @@ docker run -p 7860:7860 soc_analyst_env:latest
 
 ```text
 soc-env-hackathon/
-├── inference.py                           # Phase 2 hardened baseline agent
-├── app.py                                 # Root entry point for HF Space
-├── README.md                              # This file
-├── Dockerfile                             # Container build configuration
-├── docker-compose.yml                     # Docker compose for local dev
-├── openenv.yaml                           # OpenEnv space manifest
-├── requirements.txt                       # Python dependencies
-├── validate-submission.sh                 # Pre-submission validator script
+├── inference.py                           # Autonomous Multi-Agent Heuristic Protocol
+├── app.py                                 # Root entry point for standard HF configurations
+├── README.md                              # Technical specifications (this file)
+├── Dockerfile                             # Containerized image compiler
+├── docker-compose.yml                     # Docker orchestrator
+├── openenv.yaml                           # PyTorch task-registry manifest
+├── requirements.txt                       # Core structural dependencies
+├── validate-submission.sh                 # Hackathon autograder suite
 │
 └── soc_analyst_env/
-    ├── __init__.py                        # Package exports
-    ├── models.py                          # Re-exports for backward compat
-    ├── client.py                          # Standalone HTTP client
+    ├── __init__.py                        
+    ├── models.py                          
+    ├── client.py                          
     │
     ├── server/
-    │   ├── __init__.py
-    │   ├── app.py                         # FastAPI application & endpoints
-    │   ├── engine.py                      # Core reward and grading logic
-    │   ├── generators.py                  # Scenario-driven log generator
-    │   ├── models.py                      # Pydantic data models
-    │   ├── soc_analyst_env_environment.py # Environment state tracker
-    │   ├── rubrics.py                     # Reasoning quality evaluator
-    │   ├── telemetry.py                   # Per-episode metrics recorder
-    │   ├── logging.py                     # Central logging helpers
-    │   ├── dashboard.py                   # Post-episode ASCII report
+    │   ├── app.py                         # FastAPI operational layer
+    │   ├── engine.py                      # RL grading matrix and kill-chain logic
+    │   ├── generators.py                  # MITRE stateful log emission constructor
+    │   ├── models.py                      # Pydantic enforcement structures
+    │   ├── soc_analyst_env_environment.py # State preservation tracker
+    │   ├── rubrics.py                     # NLP reasoning multiplier calculation
+    │   ├── telemetry.py                   # Time-series episodic telemetry
+    │   ├── dashboard.py                   # Post-operation CLI visualizations
     │   └── scenarios/
-    │       ├── task_easy.json             # Brute-force scenario
-    │       ├── task_medium.json           # Distributed SQLi scenario
-    │       └── task_hard.json             # Mixed traffic scenario
+    │       ├── task_easy.json             
+    │       ├── task_medium.json           
+    │       └── task_hard.json             # Authoritative 8-stage APT matrix  
     │
     ├── agents/
-    │   └── __init__.py                    # ThreatIntelAgent, DecoyAgent
+    │   └── __init__.py                    
     │
     └── benchmark_scenarios/
         ├── __init__.py
-        └── README.md                      # Scenario documentation
+        └── README.md                      
 ```
 
 ---
 
-## 📊 Reward Design
+## 🔮 Strategic Extension Roadmap
 
-### Per-Step Rewards
-
-This environment uses a 1-shot episode: each action terminates the episode.
-Rewards are adjusted by a reasoning quality multiplier from `rubrics.py` (range: 0.5–1.0).
-
-| Action Taken | Target Condition | Base Reward | With Good Reasoning |
-| :--- | :--- | :--- | :--- |
-| `block_ip` | IP is Malicious (Status ≥ 400) | `0.999` | `0.999` |
-| `allow_ip` | IP is Normal (Status < 400) | `0.999` | `0.999` |
-| `escalate` | Any valid IP | `0.500` | `0.500` |
-| `block_ip` | IP is Normal | `0.001` | `0.001` |
-| `allow_ip` | IP is Malicious | `0.001` | `0.001` |
-| *Any Action* | Target IP not in logs | `0.001` | `0.001` |
-
-### Reasoning Rubrics
-
-The reasoning multiplier evaluates:
-1. **Length** — sufficient detail (≥ 10 words preferred)
-2. **Keywords** — mentions scenario-relevant terms
-3. **Technical specificity** — references status codes, IPs, paths
-4. **Coherence** — uses analytical language (because, detected, indicates)
-
----
-
-## 📈 Baseline Scores
-
-| Task | Heuristic Score | LLM Score (GPT-4o) | Max Steps |
-| :--- | :---: | :---: | :---: |
-| `task_easy` | `0.999` | `0.999` | 10 |
-| `task_medium` | `0.999` | `0.999` | 10 |
-| `task_hard` | `0.999` | `0.999` | 10 |
-
----
-
-## 🔌 API Reference
-
-### `GET /health`
-Returns `{"status": "ok"}`.
-
-### `GET /tasks`
-Returns available tasks and action schema.
-
-### `POST /reset`
-**Body:** `{"task_id": "task_easy"}`
-**Returns:** `{"session_id": "...", "observation": {...}}`
-
-### `POST /step`
-**Body:** `{"session_id": "...", "action": {"action_type": "block_ip", "target_ip": "...", "reasoning": "..."}}`
-**Returns:** `{"observation": {...}, "reward": 0.999, "done": true, "message": "..."}`
-
-### `GET /grader?session_id=...`
-**Returns:** `{"session_id": "...", "final_score": 0.999}`
-
----
-
-## ✅ Validation
-
-```bash
-# Run pre-submission checks
-chmod +x validate-submission.sh
-./validate-submission.sh http://localhost:7860
-```
-
-The validator checks:
-- Server health (`/health` endpoint)
-- `openenv.yaml` structure and task IDs
-- `/reset` endpoint returns `session_id` and `observation`
-- `inference.py` outputs `[START]` and `[END]` for each task
-- Score bounds within `(0.001, 0.999)`
-- Boolean format (lowercase `true`/`false`)
-
----
-
-## 📋 Environment Details
-
-- **Runtime:** < 1 minute for all 3 tasks (fast one-shot execution).
-- **Memory:** < 150MB for environment server.
-- **Compatibility:** 2 vCPU, 4GB RAM is more than sufficient.
-- **Dependencies:** Pure Python, no heavy ML libraries on the server side.
-- **Port:** `7860` (Native Hugging Face Spaces integration).
-
----
-
-## 🔮 Extension Roadmap
-
-- **Phase 3:** LLM judge for reasoning evaluation (configurable)
-- **Phase 4:** Attack rotation (attackers change IPs in response to blocks)
-- **Phase 5:** Telemetry persistence to SQLite for judge replay
-- **Multi-agent:** Cooperative SOC analyst teams
+- **Phase 4:** Evasion Rotation (adversaries adapt proxy IPs dynamically post-blockage).
+- **Phase 5:** Decentralized SQL telemetry persistence for long-horizon replay tracking.
+- **Phase 6:** LLM orchestration natively evaluating `reasoning` justification with complex threat-intel retrieval.
 
 ## 📜 License
 
