@@ -1,55 +1,110 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+"""
+SOC Analyst Environment Client.
 
-"""Soc Analyst Env Environment Client."""
+Standalone HTTP client for interacting with the SOC Analyst Environment
+server. No openenv SDK dependency.
+"""
 
-from typing import Dict
-
-from openenv.core import EnvClient
-from openenv.core.client_types import StepResult
-from openenv.core.env_server.types import State
-from .server.app import app
-# This satisfies the SDK requirements for a client entry point
-
-from .models import SOCAction, SOCObservation
+import requests
+from typing import Any, Dict, Optional
 
 
-class SocAnalystEnv(
-    EnvClient[SOCAction, SOCObservation, State]
-):
+class SOCAnalystClient:
     """
-    Client for the Soc Analyst Env Environment.
+    HTTP client for the SOC Analyst Environment.
+
+    Provides methods to reset/step the environment via REST API.
     """
 
-    def _step_payload(self, action: SOCAction) -> Dict:
+    def __init__(self, base_url: str = "http://localhost:7860", timeout: int = 10):
         """
-        Convert SOCAction to JSON payload for step message.
-        """
-        return action.model_dump()
+        Initialize the client.
 
-    def _parse_result(self, payload: Dict) -> StepResult[SOCObservation]:
+        Args:
+            base_url: URL of the SOC Analyst Environment server.
+            timeout: HTTP request timeout in seconds.
         """
-        Parse server response into StepResult[SOCObservation].
-        """
-        obs_data = payload.get("observation", {})
-        
-        # OpenEnv responses sometimes nest the actual data or pass logic right through.
-        observation = SOCObservation(**obs_data)
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+        self.session_id: Optional[str] = None
 
-        return StepResult(
-            observation=observation,
-            reward=payload.get("reward"),
-            done=payload.get("done", False),
+    def health(self) -> Dict[str, Any]:
+        """Check server health."""
+        resp = requests.get(f"{self.base_url}/health", timeout=self.timeout)
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_tasks(self) -> Dict[str, Any]:
+        """Get available tasks."""
+        resp = requests.get(f"{self.base_url}/tasks", timeout=self.timeout)
+        resp.raise_for_status()
+        return resp.json()
+
+    def reset(self, task_id: str) -> Dict[str, Any]:
+        """
+        Reset the environment for a new episode.
+
+        Args:
+            task_id: Task identifier (task_easy, task_medium, task_hard).
+
+        Returns:
+            Dict with session_id and observation.
+        """
+        resp = requests.post(
+            f"{self.base_url}/reset",
+            json={"task_id": task_id},
+            timeout=self.timeout,
         )
+        resp.raise_for_status()
+        data = resp.json()
+        self.session_id = data.get("session_id")
+        return data
 
-    def _parse_state(self, payload: Dict) -> State:
+    def step(
+        self,
+        action_type: str,
+        target_ip: str,
+        reasoning: str = "",
+        session_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
-        Parse server response into State object.
+        Submit an action and get the next observation.
+
+        Args:
+            action_type: "block_ip", "allow_ip", or "escalate".
+            target_ip: IP address to act on.
+            reasoning: Explanation for the action.
+            session_id: Optional override for session_id.
+
+        Returns:
+            Dict with observation, reward, done, message.
         """
-        return State(
-            episode_id=payload.get("episode_id"),
-            step_count=payload.get("step_count", 0),
+        sid = session_id or self.session_id
+        if not sid:
+            raise ValueError("No session_id. Call reset() first.")
+
+        resp = requests.post(
+            f"{self.base_url}/step",
+            json={
+                "session_id": sid,
+                "action": {
+                    "action_type": action_type,
+                    "target_ip": target_ip,
+                    "reasoning": reasoning,
+                },
+            },
+            timeout=self.timeout,
         )
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_score(self, session_id: Optional[str] = None) -> Dict[str, Any]:
+        """Get the grader score for a session."""
+        sid = session_id or self.session_id
+        resp = requests.get(
+            f"{self.base_url}/grader",
+            params={"session_id": sid or ""},
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()

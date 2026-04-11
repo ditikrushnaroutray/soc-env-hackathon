@@ -4,12 +4,14 @@
 # Virtual Environments (Bloat)
 venv/
 env/
+.venv/
 
 # Python Cache (Junk files)
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.egg-info/
 
 # IDE configurations
 .vscode/
@@ -27,12 +29,8 @@ Thumbs.db
 uv.lock
 .python-version
 
-# Hidden Git/IDE junk
-.git/
-.github/
-
 # Docker build junk
 .dockerignore
 
-
-
+# Scratch / temporary files
+scratch/

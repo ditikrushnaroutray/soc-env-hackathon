@@ -1,0 +1,116 @@
+{
+  "task_id": "task_medium",
+  "description": "Distributed SQL injection attack from multiple IPs",
+  "difficulty": "medium",
+  "expected_action": "block_ip",
+  "expected_targets": ["185.33.22.10", "185.33.22.45", "185.33.22.112"],
+  "expected_keywords": ["sql", "injection", "sqli", "500", "error", "database", "sqlmap", "union", "select", "drop"],
+  "threat_intel": [],
+  "logs": [
+    {
+      "timestamp": "2026-04-10T10:15:01Z",
+      "source_ip": "192.168.1.10",
+      "request_path": "/",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:05Z",
+      "source_ip": "192.168.1.20",
+      "request_path": "/api/v1/products",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:10Z",
+      "source_ip": "185.33.22.10",
+      "request_path": "/users?id=1' OR '1'='1",
+      "status_code": 500,
+      "user_agent": "sqlmap/1.5.8#stable"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:12Z",
+      "source_ip": "192.168.1.35",
+      "request_path": "/dashboard",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:15Z",
+      "source_ip": "185.33.22.45",
+      "request_path": "/users?id=1 UNION SELECT username,password FROM users--",
+      "status_code": 500,
+      "user_agent": "sqlmap/1.5.8#stable"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:18Z",
+      "source_ip": "192.168.1.10",
+      "request_path": "/api/v1/cart",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:22Z",
+      "source_ip": "185.33.22.112",
+      "request_path": "/search?q='; DROP TABLE users;--",
+      "status_code": 500,
+      "user_agent": "sqlmap/1.5.8#stable"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:25Z",
+      "source_ip": "192.168.1.40",
+      "request_path": "/images/banner.jpg",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:28Z",
+      "source_ip": "185.33.22.10",
+      "request_path": "/admin?user=admin'--",
+      "status_code": 500,
+      "user_agent": "sqlmap/1.5.8#stable"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:30Z",
+      "source_ip": "192.168.1.20",
+      "request_path": "/api/v1/checkout",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:33Z",
+      "source_ip": "185.33.22.45",
+      "request_path": "/users?id=1; EXEC xp_cmdshell('whoami')--",
+      "status_code": 500,
+      "user_agent": "sqlmap/1.5.8#stable"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:35Z",
+      "source_ip": "192.168.1.35",
+      "request_path": "/api/v1/health",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:38Z",
+      "source_ip": "192.168.1.10",
+      "request_path": "/static/js/app.js",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:40Z",
+      "source_ip": "192.168.1.50",
+      "request_path": "/api/v1/profile",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    },
+    {
+      "timestamp": "2026-04-10T10:15:45Z",
+      "source_ip": "192.168.1.40",
+      "request_path": "/",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"
+    }
+  ]
+}

@@ -1,11 +1,5 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
 """Soc Analyst Env environment server components."""
 
-from .soc_analyst_env_environment import SOCAnalystEnv
+from .soc_analyst_env_environment import SOCAnalystEnv, SESSIONS
 
-__all__ = ["SOCAnalystEnv"]
+__all__ = ["SOCAnalystEnv", "SESSIONS"]

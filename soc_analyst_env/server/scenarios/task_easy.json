@@ -1,0 +1,116 @@
+{
+  "task_id": "task_easy",
+  "description": "Standard brute-force login attack from a single IP",
+  "difficulty": "easy",
+  "expected_action": "block_ip",
+  "expected_target": "104.22.33.44",
+  "expected_keywords": ["brute", "force", "401", "unauthorized", "login", "bot", "python-requests"],
+  "threat_intel": [],
+  "logs": [
+    {
+      "timestamp": "2026-04-10T08:01:12Z",
+      "source_ip": "192.168.1.10",
+      "request_path": "/",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    },
+    {
+      "timestamp": "2026-04-10T08:01:14Z",
+      "source_ip": "192.168.1.15",
+      "request_path": "/dashboard",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+    },
+    {
+      "timestamp": "2026-04-10T08:01:18Z",
+      "source_ip": "192.168.1.22",
+      "request_path": "/api/v1/health",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+    },
+    {
+      "timestamp": "2026-04-10T08:01:20Z",
+      "source_ip": "192.168.1.30",
+      "request_path": "/images/logo.png",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    },
+    {
+      "timestamp": "2026-04-10T08:01:25Z",
+      "source_ip": "192.168.1.10",
+      "request_path": "/api/v1/users",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    },
+    {
+      "timestamp": "2026-04-10T08:02:01Z",
+      "source_ip": "104.22.33.44",
+      "request_path": "/api/v1/login",
+      "status_code": 401,
+      "user_agent": "python-requests/2.28.1"
+    },
+    {
+      "timestamp": "2026-04-10T08:02:03Z",
+      "source_ip": "104.22.33.44",
+      "request_path": "/api/v1/login",
+      "status_code": 401,
+      "user_agent": "python-requests/2.28.1"
+    },
+    {
+      "timestamp": "2026-04-10T08:02:05Z",
+      "source_ip": "104.22.33.44",
+      "request_path": "/api/v1/login",
+      "status_code": 401,
+      "user_agent": "python-requests/2.28.1"
+    },
+    {
+      "timestamp": "2026-04-10T08:02:07Z",
+      "source_ip": "104.22.33.44",
+      "request_path": "/api/v1/login",
+      "status_code": 401,
+      "user_agent": "python-requests/2.28.1"
+    },
+    {
+      "timestamp": "2026-04-10T08:02:09Z",
+      "source_ip": "104.22.33.44",
+      "request_path": "/api/v1/login",
+      "status_code": 401,
+      "user_agent": "python-requests/2.28.1"
+    },
+    {
+      "timestamp": "2026-04-10T08:02:12Z",
+      "source_ip": "192.168.1.15",
+      "request_path": "/api/v1/profile",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+    },
+    {
+      "timestamp": "2026-04-10T08:02:15Z",
+      "source_ip": "192.168.1.22",
+      "request_path": "/static/css/main.css",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+    },
+    {
+      "timestamp": "2026-04-10T08:02:18Z",
+      "source_ip": "192.168.1.30",
+      "request_path": "/",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    },
+    {
+      "timestamp": "2026-04-10T08:02:22Z",
+      "source_ip": "192.168.1.10",
+      "request_path": "/api/v1/notifications",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    },
+    {
+      "timestamp": "2026-04-10T08:02:30Z",
+      "source_ip": "192.168.1.40",
+      "request_path": "/favicon.ico",
+      "status_code": 200,
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"
+    }
+  ]
+}

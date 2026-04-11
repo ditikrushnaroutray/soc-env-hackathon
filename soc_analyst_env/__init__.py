@@ -1,16 +1,11 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+"""SOC Analyst Environment."""
 
-"""Soc Analyst Env Environment."""
-
-from .client import SocAnalystEnv
-from .models import SOCAction, SOCObservation
+from .models import SOCAction, SOCObservation, LogEntry
+from .client import SOCAnalystClient
 
 __all__ = [
     "SOCAction",
     "SOCObservation",
-    "SOCAnalystEnv",
+    "LogEntry",
+    "SOCAnalystClient",
 ]

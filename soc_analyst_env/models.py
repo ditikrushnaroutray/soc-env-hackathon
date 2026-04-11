@@ -1,32 +1,14 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
 """
-Data models for the Soc Analyst Env Environment.
+Data models for the SOC Analyst Environment.
+
+Standalone Pydantic models — no openenv SDK dependency.
+Re-exports from server.models for backward compatibility.
 """
 
-from openenv.core.env_server.types import Action, Observation
-from pydantic import BaseModel, Field
-from typing import List, Literal
+from .server.models import LogEntry, SOCAction, SOCObservation
 
-class LogEntry(BaseModel):
-    timestamp: str
-    source_ip: str
-    request_path: str
-    status_code: int
-    user_agent: str
-
-class SOCObservation(Observation):
-    current_logs: List[LogEntry] = Field(description="The latest batch of server access logs to analyze.")
-    blocked_ips: List[str] = Field(description="A list of IP addresses currently blocked by the firewall.")
-    system_status: str = Field(description="Current health of the server (e.g., 'Normal', 'Under Attack').")
-
-class SOCAction(Action):
-    action_type: Literal["block_ip", "allow_ip", "escalate"] = Field(
-        description="The action to take. 'block_ip' bans the IP. 'allow_ip' marks it safe. 'escalate' flags it for a human."
-    )
-    target_ip: str = Field(description="The IP address to apply the action to.")
-    reasoning: str = Field(description="A brief explanation of why this action was taken.")
+__all__ = [
+    "LogEntry",
+    "SOCAction",
+    "SOCObservation",
+]

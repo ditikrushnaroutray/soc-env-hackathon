@@ -2,7 +2,7 @@ spec_version: 1
 name: soc_analyst_env
 type: space
 runtime: fastapi
-app: app:app
+app: soc_analyst_env.server.app:app
 port: 7860
 
 tasks:
@@ -21,4 +21,3 @@ tasks:
     grader:
       type: deterministic
       endpoint: /grader
-      
