@@ -1,8 +1,8 @@
 """
 Data models for the SOC Analyst Environment.
 
-Standalone Pydantic models — no openenv SDK dependency.
 Re-exports from server.models for backward compatibility.
+Models inherit from openenv.core SDK base classes.
 """
 
 from .server.models import LogEntry, SOCAction, SOCObservation

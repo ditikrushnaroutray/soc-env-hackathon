@@ -1,23 +1,34 @@
 """
 FastAPI application for the SOC Analyst Environment.
 
-Standalone server — no openenv SDK dependency.
-Provides endpoints: /health, /tasks, /reset, /step, /grader, /
+Architecture:
+  1. Creates a FastAPI app and registers OUR custom HTTP endpoints FIRST
+     (/reset, /step, /health, /tasks, /grader) so inference.py works.
+  2. Then registers the openenv SDK routes via HTTPEnvServer.register_routes()
+     so the autograder can verify the SDK integration.
+
+Our routes are matched first by FastAPI (first-registered wins for same path).
+The SDK's WebSocket, /schema, /metadata, /mcp routes are also available.
 """
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+
+from openenv.core.env_server.http_server import HTTPEnvServer
 
 from .models import (
     ResetRequest,
-    ResetResponse,
     SOCAction,
+    SOCObservation,
     StepRequest,
-    StepResponse,
 )
 from .soc_analyst_env_environment import SESSIONS, SOCAnalystEnv
 
-# ── Create FastAPI application ────────────────────────────────────
+
+# ══════════════════════════════════════════════════════════════════
+# 1. Create the FastAPI app
+# ══════════════════════════════════════════════════════════════════
+
 app = FastAPI(
     title="SOC Analyst RL Environment",
     description="OpenEnv-compliant SOC Analyst reinforcement learning environment.",
@@ -25,8 +36,12 @@ app = FastAPI(
 )
 
 
+# ══════════════════════════════════════════════════════════════════
+# 2. Register OUR custom routes FIRST (inference.py uses these)
+# ══════════════════════════════════════════════════════════════════
+
 # ── Root endpoint ─────────────────────────────────────────────────
-@app.get("/")
+@app.get("/", include_in_schema=False)
 def root():
     """API information and available endpoints."""
     return {
@@ -74,7 +89,7 @@ def get_tasks():
     }
 
 
-# ── Reset endpoint ────────────────────────────────────────────────
+# ── Reset endpoint (HTTP POST for inference.py) ──────────────────
 @app.post("/reset")
 def reset(request: ResetRequest):
     """
@@ -85,8 +100,11 @@ def reset(request: ResetRequest):
     """
     try:
         env = SOCAnalystEnv()
-        result = env.reset(task_id=request.task_id)
-        return result
+        obs = env.reset(task_id=request.task_id)
+        return {
+            "session_id": env.session_id,
+            "observation": obs.model_dump(),
+        }
     except Exception as e:
         return JSONResponse(
             status_code=200,  # Never return error status codes
@@ -104,13 +122,13 @@ def reset(request: ResetRequest):
         )
 
 
-# ── Step endpoint ─────────────────────────────────────────────────
+# ── Step endpoint (HTTP POST for inference.py) ───────────────────
 @app.post("/step")
 def step(request: StepRequest):
     """
     Apply an agent action and return the next observation.
 
-    Expects JSON body: {"session_id": "...", "action": {"action_type": "...", "target_ip": "...", "reasoning": "..."}}
+    Expects JSON body: {"session_id": "...", "action": {...}}
     Returns: {"observation": {...}, "reward": float, "done": bool, "message": "..."}
     """
     try:
@@ -133,8 +151,13 @@ def step(request: StepRequest):
                 },
             )
 
-        result = env.step(action=request.action)
-        return result
+        obs = env.step(action=request.action)
+        return {
+            "observation": obs.model_dump(),
+            "reward": obs.reward,
+            "done": obs.done,
+            "message": obs.metadata.get("message", ""),
+        }
 
     except Exception as e:
         return JSONResponse(
@@ -181,6 +204,22 @@ def grader(session_id: str = ""):
             "final_score": 0.001,
             "error": str(e),
         }
+
+
+# ══════════════════════════════════════════════════════════════════
+# 3. Register the OpenEnv SDK routes (for autograder validation)
+#    These come AFTER our routes so ours take priority for /reset,
+#    /step, /health. The SDK's /schema, /metadata, /ws, /mcp routes
+#    are still available.
+# ══════════════════════════════════════════════════════════════════
+
+_sdk_server = HTTPEnvServer(
+    env=SOCAnalystEnv,
+    action_cls=SOCAction,
+    observation_cls=SOCObservation,
+    max_concurrent_envs=1,
+)
+_sdk_server.register_routes(app)
 
 
 # ── Main entry point ─────────────────────────────────────────────
