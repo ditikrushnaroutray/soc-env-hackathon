@@ -75,7 +75,7 @@ class SOCAction(Action):
 
 class ResetRequest(BaseModel):
     """Request body for the /reset endpoint."""
-    task_id: str = Field(description="Task identifier (task_easy, task_medium, task_hard).")
+    task_id: str = Field(default="task_easy", description="Task identifier (task_easy, task_medium, task_hard).")
 
 
 class StepRequest(BaseModel):
