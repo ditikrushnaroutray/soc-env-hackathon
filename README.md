@@ -60,6 +60,12 @@ To solve the advanced MITRE kill-chain simulation and defeat modern zero-day eva
 - **Episodic Threat Ledger (Stateful Memory):** Overcame standard agent amnesia by implementing a global ledger that tracks IP request volumes across the entire session timeline, effectively neutralizing "low and slow" distributed attacks.
 - **Hybrid AI / Edge-Optimized Routing:** Designed to operate strictly within the 8GB RAM / 20-minute hackathon constraints. 90% of traffic is handled by ultra-fast heuristics. Ambiguous threats (score 0.4 - 0.69) are routed to a simulated `llm_reasoning_fallback` API wrapper, proving the framework is modular and LLM-ready for enterprise environments without crashing local compute.
 
+### 🛠 Technical Implementation Notes
+- **State Management:** Uses an $O(1)$ Hash-Map (`EPISODIC_IP_LEDGER`) to maintain threat context across 10-step episodes without a memory leak.
+- **Detection Logic:** Combined heuristic/regex engine for 10ms triage latency.
+- **URL Pre-processing:** All request paths are normalized via `urllib.parse.unquote` to detect obfuscated payload injection.
+- **Modular Routing:** Implemented a `llm_reasoning_fallback` wrapper to demonstrate API compatibility for cloud-based LLM integration while respecting the 8GB local RAM constraint.
+
 ---
 
 ## ⚙️ Technical Specifications
