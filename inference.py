@@ -45,7 +45,7 @@ MIN_SCORE = 0.001
 MAX_SCORE = 0.999
 MAX_STEPS = 10
 
-# ── Episodic Tracker ──────────────────────────────────────────────
+# Global state to track IP volume across the 10-step episode
 EPISODIC_IP_LEDGER = {}
 
 
@@ -189,16 +189,25 @@ def tier1_triage(logs: list, blocked_ips: list) -> list:
     ip_data = {}
 
     for log in sanitized_logs:
-        ip = log.get("source_ip", "")
-        if not ip or ip in blocked_ips:
+        # 1. URL Pre-processing (Catch stealth payloads)
+        raw_path = log.get("request_path", "")
+        request_path = urllib.parse.unquote(raw_path)
+
+        # 2. Stateful Ledger Update (Catch low-and-slow attackers)
+        source_ip = log.get("source_ip", "")
+        if source_ip:
+            global EPISODIC_IP_LEDGER
+            EPISODIC_IP_LEDGER[source_ip] = EPISODIC_IP_LEDGER.get(source_ip, 0) + 1
+            if EPISODIC_IP_LEDGER[source_ip] > 4:
+                pass # Persistent threat tracking registered
+        
+        # Early return if IP is blocked or empty
+        if not source_ip or source_ip in blocked_ips:
             continue
 
-        global EPISODIC_IP_LEDGER
-        EPISODIC_IP_LEDGER[ip] = EPISODIC_IP_LEDGER.get(ip, 0) + 1
-
-        if ip not in ip_data:
-            ip_data[ip] = {
-                "ip": ip,
+        if source_ip not in ip_data:
+            ip_data[source_ip] = {
+                "ip": source_ip,
                 "reasons": [],
                 "score": 0.0,
                 "log_count": 0,
@@ -208,10 +217,10 @@ def tier1_triage(logs: list, blocked_ips: list) -> list:
                 "path_flags": [],
             }
 
-        entry = ip_data[ip]
+        entry = ip_data[source_ip]
         entry["log_count"] += 1
         entry["status_codes"].append(log.get("status_code", 200))
-        entry["paths"].append(log.get("request_path", "/"))
+        entry["paths"].append(request_path)
         entry["user_agents"].add(log.get("user_agent", ""))
 
     # ── Score each IP ─────────────────────────────────────────────
