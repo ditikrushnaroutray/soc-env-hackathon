@@ -66,6 +66,8 @@ To solve the advanced MITRE kill-chain simulation and defeat modern zero-day eva
 - **URL Pre-processing:** All request paths are normalized via `urllib.parse.unquote` to detect obfuscated payload injection.
 - **Modular Routing:** Implemented a `llm_reasoning_fallback` wrapper to demonstrate API compatibility for cloud-based LLM integration while respecting the 8GB local RAM constraint.
 
+The heuristic engine uses configurable thresholds designed to be tuned for different enterprise traffic profiles to ensure scalability across varying network baselines.
+
 ---
 
 ## ⚙️ Technical Specifications

@@ -297,6 +297,7 @@ def tier1_triage(logs: list, blocked_ips: list) -> list:
         score = min(score, 1.0)
 
         # Verdict
+        # Industry-standard triage thresholds for high-confidence blocking.
         if score >= 0.4:
             verdict = "MALICIOUS"
         elif score >= 0.15:
