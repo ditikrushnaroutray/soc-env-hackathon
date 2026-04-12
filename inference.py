@@ -170,9 +170,21 @@ def tier1_triage(logs: list, blocked_ips: list) -> list:
 
     IPs already blocked are excluded.
     """
+    # ── Zero-Trust Field Stripping ────────────────────────────────
+    # Explicitly sanitize logs so the agent cannot cheat by reading
+    # hidden generator metadata (like attack_stage).
+    sanitized_logs = []
+    for raw_log in logs:
+        sanitized_logs.append({
+            "source_ip": raw_log.get("source_ip", ""),
+            "request_path": raw_log.get("request_path", "/"),
+            "status_code": raw_log.get("status_code", 200),
+            "user_agent": raw_log.get("user_agent", ""),
+        })
+
     ip_data = {}
 
-    for log in logs:
+    for log in sanitized_logs:
         ip = log.get("source_ip", "")
         if not ip or ip in blocked_ips:
             continue
@@ -248,8 +260,8 @@ def tier1_triage(logs: list, blocked_ips: list) -> list:
                     break  # one flag per path
 
         # Rule 5: Volume — many requests from a single IP
-        if data["log_count"] >= 4:
-            score += 0.1
+        if data["log_count"] > 3:
+            score += 0.5
             reasons.append(f"High volume: {data['log_count']} requests")
 
         # Rule 6: External IP bonus (non-internal IPs are riskier)
@@ -334,6 +346,33 @@ def incident_responder(triage_results: list, observation: dict) -> dict:
     malicious = [r for r in triage_results if r["verdict"] == "MALICIOUS" and r["ip"] not in blocked_ips]
     suspicious = [r for r in triage_results if r["verdict"] == "SUSPICIOUS" and r["ip"] not in blocked_ips]
     benign = [r for r in triage_results if r["verdict"] == "BENIGN" and r["ip"] not in blocked_ips]
+
+    # ── Priority 0: Zero-Day Stealth Attack (Path + Volume) ───────
+    stealth_attackers = []
+    for r in malicious + suspicious:
+        has_suspicious_path = any("Suspicious path" in reason for reason in r["reasons"])
+        has_high_volume = any("High volume" in reason for reason in r["reasons"])
+        if has_suspicious_path and has_high_volume:
+            stealth_attackers.append(r)
+
+    if stealth_attackers:
+        target = stealth_attackers[0]
+        ip = target["ip"]
+        stages = _detect_stages(target["paths"], target["user_agents"])
+        stage_str = ", ".join(stages) if stages else "unknown"
+
+        reasoning = (
+            f"Zero-Day Stealth Threat: IP {ip} combines high request volume "
+            f"with suspicious paths. MITRE stages: [{stage_str}]. "
+            f"Indicators: {'; '.join(target['reasons'][:5])}. "
+            f"Blocking immediately."
+        )
+
+        return {
+            "action_type": "block_ip",
+            "target_ip": ip,
+            "reasoning": reasoning,
+        }
 
     # ── Priority 1: Block the most dangerous malicious IP ─────────
     if malicious:

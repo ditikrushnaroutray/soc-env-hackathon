@@ -175,7 +175,7 @@ class SOCAnalystEnv(Environment[SOCAction, SOCObservation, State]):
         SESSIONS[self.session_id] = self
 
         # Load scenario data — keep raw dicts for kill-chain metadata
-        self._raw_logs = generate_logs(self.task_id)
+        self._raw_logs = generate_logs(self.task_id, seed_key=self.session_id)
         parsed_logs = [LogEntry(**log) for log in self._raw_logs]
         self._expected_keywords = get_expected_keywords(self.task_id)
 
@@ -184,7 +184,7 @@ class SOCAnalystEnv(Environment[SOCAction, SOCObservation, State]):
         self._kill_chain_state = _compute_kill_chain_state(self._raw_logs)
 
         # Load threat intel (Phase 4)
-        threat_intel_data = get_threat_intel(self.task_id)
+        threat_intel_data = get_threat_intel(self.task_id, seed_key=self.session_id)
         threat_intel_enrichment: list = []
         if ThreatIntelAgent is not None and threat_intel_data:
             self._threat_intel_agent = ThreatIntelAgent()

