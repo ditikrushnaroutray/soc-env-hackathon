@@ -30,6 +30,7 @@ import json
 import time
 import re
 import traceback
+import urllib.parse
 import requests
 
 # ═══════════════════════════════════════════════════════════════════
@@ -43,6 +44,9 @@ ENV_URL = os.environ.get("ENV_URL") or "http://localhost:7860"
 MIN_SCORE = 0.001
 MAX_SCORE = 0.999
 MAX_STEPS = 10
+
+# ── Episodic Tracker ──────────────────────────────────────────────
+EPISODIC_IP_LEDGER = {}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -189,6 +193,9 @@ def tier1_triage(logs: list, blocked_ips: list) -> list:
         if not ip or ip in blocked_ips:
             continue
 
+        global EPISODIC_IP_LEDGER
+        EPISODIC_IP_LEDGER[ip] = EPISODIC_IP_LEDGER.get(ip, 0) + 1
+
         if ip not in ip_data:
             ip_data[ip] = {
                 "ip": ip,
@@ -222,8 +229,9 @@ def tier1_triage(logs: list, blocked_ips: list) -> list:
         if _is_benign_user_agent(ua_str) and _is_internal_ip(ip):
             has_suspicious_path = False
             for path in data["paths"]:
+                decoded_path = urllib.parse.unquote(path)
                 for pattern in _SUSPICIOUS_PATH_PATTERNS:
-                    if pattern.search(path):
+                    if pattern.search(decoded_path):
                         has_suspicious_path = True
                         break
                 if has_suspicious_path:
@@ -252,17 +260,19 @@ def tier1_triage(logs: list, blocked_ips: list) -> list:
 
         # Rule 4: Suspicious request paths
         for path in data["paths"]:
+            decoded_path = urllib.parse.unquote(path)
             for pattern in _SUSPICIOUS_PATH_PATTERNS:
-                if pattern.search(path):
+                if pattern.search(decoded_path):
                     score += 0.2
                     reasons.append(f"Suspicious path: {path[:60]}")
                     data["path_flags"].append(pattern.pattern)
                     break  # one flag per path
 
         # Rule 5: Volume — many requests from a single IP
-        if data["log_count"] > 3:
+        global_count = EPISODIC_IP_LEDGER.get(ip, data["log_count"])
+        if global_count > 3:
             score += 0.5
-            reasons.append(f"High volume: {data['log_count']} requests")
+            reasons.append(f"High volume: {global_count} requests")
 
         # Rule 6: External IP bonus (non-internal IPs are riskier)
         if not _is_internal_ip(ip):
@@ -452,6 +462,17 @@ def incident_responder(triage_results: list, observation: dict) -> dict:
 # 5. COMBINED MULTI-AGENT DECISION
 # ═══════════════════════════════════════════════════════════════════
 
+def llm_reasoning_fallback(ip_data: dict) -> str:
+    """
+    Dummy LLM integration for Deep Analysis of Gray Zone threats.
+    Simulates a failure when no local inference endpoint is available.
+    """
+    try:
+        raise TimeoutError("Simulated LLM API Timeout.")
+    except (TimeoutError, NotImplementedError):
+        return "[AI_ROUTING_UNAVAILABLE: FALLBACK_TO_HEURISTIC]"
+
+
 def multi_agent_decide(observation: dict) -> dict:
     """
     Pipeline: Agent 1 (Triage) → Agent 2 (Incident Responder).
@@ -464,8 +485,21 @@ def multi_agent_decide(observation: dict) -> dict:
     # Agent 1: Triage
     triage_results = tier1_triage(logs, blocked_ips)
 
+    # Hybrid AI/ML Routing: The Gray Zone
+    gray_zone_tags = {}
+    for r in triage_results:
+        if 0.4 <= r["score"] <= 0.69:
+            tag = llm_reasoning_fallback(r)
+            if tag:
+                gray_zone_tags[r["ip"]] = tag
+
     # Agent 2: Respond
     action = incident_responder(triage_results, observation)
+
+    # Append tag if target was in the Gray Zone
+    target_ip = action.get("target_ip")
+    if target_ip and target_ip in gray_zone_tags:
+        action["reasoning"] += f" {gray_zone_tags[target_ip]}"
 
     return action
 
@@ -573,6 +607,10 @@ def solve_task(task_id: str) -> float:
             log_step(step=0, action_str="reset", reward=MIN_SCORE, done=True, error=error_msg)
             rewards.append(MIN_SCORE)
             return MIN_SCORE
+
+        # Reset episode-level tracker
+        global EPISODIC_IP_LEDGER
+        EPISODIC_IP_LEDGER.clear()
 
         # ── Interaction loop ───────────────────────────────────
         consecutive_errors = 0
