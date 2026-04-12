@@ -42,6 +42,8 @@ The OpenEnv SOC Analyst training environment provides a high-stakes, realistic s
 
 The V2 environment overhaul introduces a deterministic, 8-stage MITRE ATT&CK kill-chain generator integrated directly into the `task_hard` scenario. By leveraging Pydantic-safe metadata injection, hidden `attack_stage` and `mitre_technique` context is preserved in the generated raw logs. 
 
+The environment operates as a 'Deterministic State-Machine Adversary' that simulates lateral movement across 8 stages.
+
 The evaluation engine securely tracks adversarial progression across multi-step episodes:
 - **Continuous Engagement:** If an agent neutralizes an early-stage technique (e.g., *Reconnaissance*), the episode continues dynamically.
 - **Terminal Objectives:** If an agent isolates the adversary's terminal objective (e.g., *Data Exfiltration*), the episode victoriously concludes.
@@ -65,6 +67,7 @@ To solve the advanced MITRE kill-chain simulation and defeat modern zero-day eva
 - **Detection Logic:** Combined heuristic/regex engine for 10ms triage latency.
 - **URL Pre-processing:** All request paths are normalized via `urllib.parse.unquote` to detect obfuscated payload injection.
 - **Modular Routing:** Implemented a `llm_reasoning_fallback` wrapper to demonstrate API compatibility for cloud-based LLM integration while respecting the 8GB local RAM constraint.
+- **Adversarial Deception:** The generator injects 'Internal Decoy' logs (like automated sysadmin backups) to test the agent's precision and prevent over-blocking.
 
 The heuristic engine uses configurable thresholds designed to be tuned for different enterprise traffic profiles to ensure scalability across varying network baselines.
 

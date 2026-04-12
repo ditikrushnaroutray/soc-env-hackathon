@@ -467,8 +467,11 @@ def _generate_hard_apt(rng: _random_module.Random) -> List[Dict[str, Any]]:
     logs.append(_benign("2026-04-10T13:55:10Z", mon_ip, "/health", mon_ua))
 
     # ══════════════════════════════════════════════════════════════
-    # STAGE 1 — RECONNAISSANCE  (T1595: Active Scanning)
-    # The adversary probes the target's attack surface.
+    # STAGE 1 — RECONNAISSANCE
+    # MITRE ATT&CK: T1595 (Active Scanning) & T1592 (Gather Victim Host Information)
+    # The adversary simulates stateful reconnaissance by actively probing the 
+    # attack surface, performing targeted discovery of sensitive endpoints like 
+    # security.txt and sitemap.xml to inform subsequent attack stages.
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:00:01Z",
@@ -506,8 +509,11 @@ def _generate_hard_apt(rng: _random_module.Random) -> List[Dict[str, Any]]:
     logs.append(_benign("2026-04-10T14:00:12Z", carol_ip, "/api/v1/products", carol_ua))
 
     # ══════════════════════════════════════════════════════════════
-    # STAGE 2 — INITIAL ACCESS  (T1078: Valid Accounts via cred-stuffing)
-    # Adversary uses stolen credentials from a prior breach.
+    # STAGE 2 — INITIAL ACCESS
+    # MITRE ATT&CK: T1078 (Valid Accounts) & T1190 (Exploit Public-Facing Application)
+    # Simulates an advanced adversary leveraging credentials obtained from prior 
+    # breaches (cred-stuffing) or vulnerabilities, establishing a foothold into 
+    # the environment with stateful persistence of the session.
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:01:00Z",
@@ -549,8 +555,11 @@ def _generate_hard_apt(rng: _random_module.Random) -> List[Dict[str, Any]]:
     logs.append(_benign("2026-04-10T14:01:15Z", dave_ip, "/api/v1/notifications", dave_ua))
 
     # ══════════════════════════════════════════════════════════════
-    # STAGE 3 — EXECUTION  (T1059.001: PowerShell / Command Interpreter)
-    # Adversary tests command execution via exposed debug endpoint.
+    # STAGE 3 — EXECUTION
+    # MITRE ATT&CK: T1059.001 (Command and Scripting Interpreter) & T1059.004 (Unix Shell)
+    # The adversary validates remote code execution (RCE) capabilities through 
+    # an exposed debug endpoint, issuing arbitrary system commands to verify 
+    # lateral constraints and execution contexts.
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:02:00Z",
@@ -572,8 +581,11 @@ def _generate_hard_apt(rng: _random_module.Random) -> List[Dict[str, Any]]:
     logs.append(_benign("2026-04-10T14:02:08Z", alice_ip, "/api/v1/settings", alice_ua))
 
     # ══════════════════════════════════════════════════════════════
-    # STAGE 4 — PERSISTENCE  (T1505.003: Web Shell)
-    # Adversary drops a web shell for future access.
+    # STAGE 4 — PERSISTENCE
+    # MITRE ATT&CK: T1505.003 (Server Software Component: Web Shell) & T1136 (Create Account)
+    # Demonstrates stateful capability by dropping a webshell for interactive C2 
+    # and provisioning a backdoor administrator account, ensuring long-term 
+    # survivability within the infrastructure.
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:03:00Z",
@@ -605,8 +617,11 @@ def _generate_hard_apt(rng: _random_module.Random) -> List[Dict[str, Any]]:
     logs.append(_benign("2026-04-10T14:03:28Z", scan_ip, "/.env", scan_ua, 404))
 
     # ══════════════════════════════════════════════════════════════
-    # STAGE 5 — PRIVILEGE ESCALATION  (T1068: Exploitation for Priv Esc)
-    # Adversary exploits a local vulnerability to gain root.
+    # STAGE 5 — PRIVILEGE ESCALATION
+    # MITRE ATT&CK: T1068 (Exploitation for Privilege Escalation)
+    # The adversary escalates privileges from a standard service account to root, 
+    # capitalizing on local misconfigurations or vulnerabilities to gain complete 
+    # administrative control over the compromised host.
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:04:00Z",
@@ -629,9 +644,11 @@ def _generate_hard_apt(rng: _random_module.Random) -> List[Dict[str, Any]]:
     logs.append(_benign("2026-04-10T14:04:15Z", carol_ip, "/api/v1/cart", carol_ua))
 
     # ══════════════════════════════════════════════════════════════
-    # STAGE 6 — DEFENSE EVASION  (T1070.004: File Deletion,
-    #                              T1036: Masquerading)
-    # Adversary covers tracks and blends in with legit traffic.
+    # STAGE 6 — DEFENSE EVASION
+    # MITRE ATT&CK: T1070.004 (Indicator Removal: File Deletion) & T1036 (Masquerading)
+    # Highlights advanced tradecraft by purging shell histories and authentication 
+    # logs (T1070), while simultaneously masquerading as an internal monitoring 
+    # baseline service to bypass anomaly detection rules.
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:05:00Z",
@@ -662,8 +679,11 @@ def _generate_hard_apt(rng: _random_module.Random) -> List[Dict[str, Any]]:
     logs.append(_benign("2026-04-10T14:05:15Z", mon_ip, "/metrics", mon_ua))
 
     # ══════════════════════════════════════════════════════════════
-    # STAGE 7 — COLLECTION  (T1005: Data from Local System)
-    # Adversary harvests sensitive data using the compromised host.
+    # STAGE 7 — COLLECTION
+    # MITRE ATT&CK: T1005 (Data from Local System) & T1003 (OS Credential Dumping)
+    # The adversary systematically identifies, aggregates, and dumps high-value 
+    # targets, such as sensitive database backups and secrets configurations, 
+    # preparing the stolen intellectual property for exfiltration.
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:06:00Z",
@@ -694,8 +714,10 @@ def _generate_hard_apt(rng: _random_module.Random) -> List[Dict[str, Any]]:
     logs.append(_benign("2026-04-10T14:06:20Z", dave_ip, "/api/v1/health", dave_ua))
 
     # ══════════════════════════════════════════════════════════════
-    # STAGE 8 — EXFILTRATION  (T1041: Exfiltration Over C2 Channel)
-    # Adversary sends collected data to external drop server.
+    # STAGE 8 — EXFILTRATION
+    # MITRE ATT&CK: T1041 (Exfiltration Over C2 Channel)
+    # Executing the final objective, the attacker securely exfiltrates the collected 
+    # data out of the environment to an external drop server via webhook web requests.
     # ══════════════════════════════════════════════════════════════
     logs.append(_tag({
         "timestamp": "2026-04-10T14:07:00Z",
