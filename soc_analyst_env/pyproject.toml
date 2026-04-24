@@ -1,4 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 #
 # This source code is licensed under the BSD-style license found in the
@@ -16,7 +15,7 @@ requires-python = ">=3.10"
 dependencies = [
     # Core OpenEnv runtime (provides FastAPI server + HTTP client types)
     # install from github
-    # "openenv-core[core] @ git+https://github.com/meta-pytorch/OpenEnv.git",
+    # "openenv-core[core] @ git+https://github.com/OpenEnv-Project/OpenEnv.git",
     "openenv-core[core]>=0.2.1",
     # Environment-specific dependencies
     # Add all dependencies needed for your environment here
