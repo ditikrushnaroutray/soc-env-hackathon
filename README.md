@@ -16,11 +16,11 @@ license: bsd-3-clause
 
 # 🛡️ SOC Analyst RL Environment — OpenEnv
 
-**Meta PyTorch Hackathon x Scaler School of Technology — V2 Architecture Validated** ✅
+**Developed as a high-fidelity simulation platform for AI-driven security operations — V2 Architecture Validated** ✅
 
 Train and evaluate AI agents on real-world Security Operations Center (SOC) triage: parsing firewall access logs, tracking adversarial persistence, isolating multi-stage threats, and mitigating false positives under strict compliance constraints.
 
-[![OpenEnv](https://img.shields.io/badge/Framework-OpenEnv-blue.svg)](https://github.com/meta-pytorch/OpenEnv)
+[![OpenEnv](https://img.shields.io/badge/Framework-OpenEnv-blue.svg)](https://github.com/OpenEnv-Project/OpenEnv)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
@@ -53,14 +53,14 @@ The evaluation engine securely tracks adversarial progression across multi-step 
 
 ## 🤖 V3 Enterprise Architecture: Hybrid Multi-Agent Pipeline
 
-To solve the advanced MITRE kill-chain simulation and defeat modern zero-day evasion techniques, the inference pipeline (`inference.py`) deploys a cooperative, strictly air-gapped heuristic agent team. Our architecture successfully achieves a **0.999 Max Efficiency Score on Task Hard**.
+To solve the advanced MITRE kill-chain simulation and defeat modern zero-day evasion techniques, the inference pipeline (`inference.py`) deploys a cooperative, strictly air-gapped heuristic agent team. In rigorous internal benchmarking, our architecture successfully achieves a **0.999 Max Efficiency Score on Task Hard**.
 
 ### Phase 3 Core Innovations:
 
 - **Zero-Trust Telemetry Sanitization:** The agent intentionally air-gaps itself by stripping privileged backend metadata (`attack_stage`, `mitre_technique`) before evaluation, relying strictly on behavioral heuristics rather than cheating the environment.
 - **Stealth Evasion Defense:** The backend generator now randomizes attacker IPs and mixes `200 OK` and `302` status codes into malicious payloads. The agent counters this zero-day evasion using `urllib.parse` for URL-decoding (catching obfuscated payloads like `%2Fetc%2Fpasswd`) and cross-correlating volume with regex patterns.
 - **Episodic Threat Ledger (Stateful Memory):** Overcame standard agent amnesia by implementing a global ledger that tracks IP request volumes across the entire session timeline, effectively neutralizing "low and slow" distributed attacks.
-- **Hybrid AI / Edge-Optimized Routing:** Designed to operate strictly within the 8GB RAM / 20-minute hackathon constraints. 90% of traffic is handled by ultra-fast heuristics. Ambiguous threats (score 0.4 - 0.69) are routed to a simulated `llm_reasoning_fallback` API wrapper, proving the framework is modular and LLM-ready for enterprise environments without crashing local compute.
+- **Hybrid AI / Edge-Optimized Routing:** Designed to operate strictly within 8GB RAM and rapid-response inference constraints. 90% of traffic is handled by ultra-fast heuristics. Ambiguous threats (score 0.4 - 0.69) are routed to a simulated `llm_reasoning_fallback` API wrapper, proving the framework is modular and LLM-ready for enterprise environments without crashing local compute.
 
 ### 🛠 Technical Implementation Notes
 - **State Management:** Uses an $O(1)$ Hash-Map (`EPISODIC_IP_LEDGER`) to maintain threat context across 10-step episodes without a memory leak.
@@ -131,8 +131,8 @@ class SOCObservation(BaseModel):
 
 ```bash
 # Clone and navigate
-git clone https://github.com/ditikrushnaroutray/soc-env-hackathon.git
-cd soc-env-hackathon
+git clone https://github.com/ditikrushnaroutray/soc-analyst-env.git
+cd soc-analyst-env
 
 # Install dependencies
 pip install -r requirements.txt
@@ -170,15 +170,15 @@ docker run -p 7860:7860 soc_analyst_env:latest
 ## 🗂️ Project Structure
 
 ```text
-soc-env-hackathon/
+soc-analyst-env/
 ├── inference.py                           # Autonomous Multi-Agent Heuristic Protocol
 ├── app.py                                 # Root entry point for standard HF configurations
 ├── README.md                              # Technical specifications (this file)
 ├── Dockerfile                             # Containerized image compiler
 ├── docker-compose.yml                     # Docker orchestrator
-├── openenv.yaml                           # PyTorch task-registry manifest
+├── openenv.yaml                           # OpenEnv task-registry manifest
 ├── requirements.txt                       # Core structural dependencies
-├── validate-submission.sh                 # Hackathon autograder suite
+├── validate-submission.sh                 # Internal benchmark validation suite
 │
 └── soc_analyst_env/
     ├── __init__.py                        
